@@ -167,11 +167,11 @@ public struct ANSITerminalBackend: TerminalBackend {
     }
 
     public func enterApplicationMode(device: TerminalDevice) throws {
-        try device.writeOutput("\u{001B}[?1049h\u{001B}[?25l\u{001B}[?1000h\u{001B}[?1006h\u{001B}[2J\u{001B}[H")
+        try device.writeOutput("\u{001B}[?1049h\u{001B}[?25l\u{001B}[?1000h\u{001B}[?1002h\u{001B}[?1006h\u{001B}[2J\u{001B}[H")
     }
 
     public func exitApplicationMode(device: TerminalDevice) throws {
-        try device.writeOutput("\u{001B}[?1006l\u{001B}[?1000l\u{001B}[?25h\u{001B}[0m\u{001B}[?1049l")
+        try device.writeOutput("\u{001B}[?1006l\u{001B}[?1002l\u{001B}[?1000l\u{001B}[?25h\u{001B}[0m\u{001B}[?1049l")
     }
 
     public func render(_ canvas: Canvas, device: TerminalDevice) throws {

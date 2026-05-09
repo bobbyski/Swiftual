@@ -244,6 +244,7 @@ public struct MainViewContainer: Equatable, Sendable {
     public var checkbox: Checkbox
     public var toggleSwitch: Switch
     public var select: Select
+    public var scrollView: ScrollView
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -256,6 +257,7 @@ public struct MainViewContainer: Equatable, Sendable {
         checkbox: Checkbox = Checkbox("Enable feature", frame: Rect(x: 46, y: 6, width: 20, height: 1), isChecked: true),
         toggleSwitch: Switch = Switch("Power", frame: Rect(x: 68, y: 6, width: 14, height: 1), isOn: true),
         select: Select = Select(frame: Rect(x: 84, y: 6, width: 14, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta"), SelectOption("Gamma")]),
+        scrollView: ScrollView = ScrollView(frame: Rect(x: 74, y: 14, width: 24, height: 5), content: (1...12).map { "Scroll row \($0)" }),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -266,6 +268,7 @@ public struct MainViewContainer: Equatable, Sendable {
         self.checkbox = checkbox
         self.toggleSwitch = toggleSwitch
         self.select = select
+        self.scrollView = scrollView
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -309,6 +312,12 @@ public struct MainViewContainer: Equatable, Sendable {
             }
         }
 
+        if case .mouse(let mouse) = event, scrollView.frame.contains(mouse.location) {
+            focusedControl = .scrollView
+            _ = scrollView.handle(event)
+            return .none
+        }
+
         switch focusedControl {
         case .menuBar:
             return menuBar.handle(event)
@@ -341,6 +350,10 @@ public struct MainViewContainer: Equatable, Sendable {
         case .select:
             select.isFocused = true
             _ = select.handle(event)
+            return .none
+        case .scrollView:
+            scrollView.isFocused = true
+            _ = scrollView.handle(event)
             return .none
         }
     }
@@ -402,6 +415,9 @@ public struct MainViewContainer: Equatable, Sendable {
         var select = select
         select.isFocused = focusedControl == .select
         select.render(in: &canvas)
+        var scrollView = scrollView
+        scrollView.isFocused = focusedControl == .scrollView
+        scrollView.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
@@ -446,6 +462,7 @@ public enum MainViewFocus: Equatable, Sendable {
     case checkbox
     case `switch`
     case select
+    case scrollView
 
     var next: MainViewFocus {
         switch self {
@@ -460,6 +477,8 @@ public enum MainViewFocus: Equatable, Sendable {
         case .switch:
             return .select
         case .select:
+            return .scrollView
+        case .scrollView:
             return .menuBar
         }
     }

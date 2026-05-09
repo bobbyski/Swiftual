@@ -94,6 +94,17 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(device.output.contains("\u{001B}[37;44m"))
     }
 
+    func testANSIBackendEnablesAndDisablesMouseDragTracking() throws {
+        let device = VirtualTerminalDevice(size: TerminalSize(columns: 6, rows: 2))
+        let backend = ANSITerminalBackend()
+
+        try backend.enterApplicationMode(device: device)
+        try backend.exitApplicationMode(device: device)
+
+        XCTAssertTrue(device.output.contains("\u{001B}[?1002h"))
+        XCTAssertTrue(device.output.contains("\u{001B}[?1002l"))
+    }
+
     func testANSIBackendDoesNotScrollLastRenderedRow() throws {
         let device = VirtualTerminalDevice(size: TerminalSize(columns: 4, rows: 2))
         let backend = ANSITerminalBackend()
@@ -600,6 +611,63 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(select.selectedIndex, 1)
     }
 
+    func testScrollViewRendersVisibleRowsAndClipsContent() {
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 8))
+        let scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 3), content: ["One", "Two", "Three", "Four"])
+
+        scrollView.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "O")
+        XCTAssertEqual(canvas[2, 2].character, "T")
+        XCTAssertEqual(canvas[2, 3].character, "T")
+        XCTAssertEqual(canvas[2, 4].character, " ")
+    }
+
+    func testScrollViewKeyboardScrollsWhenFocused() {
+        var scrollView = ScrollView(frame: Rect(x: 0, y: 0, width: 12, height: 3), content: ["One", "Two", "Three", "Four"], isFocused: true)
+
+        XCTAssertEqual(scrollView.handle(.key(.down)), .scrolled(1))
+        XCTAssertEqual(scrollView.scrollOffset, 1)
+        XCTAssertEqual(scrollView.handle(.key(.up)), .scrolled(0))
+        XCTAssertEqual(scrollView.scrollOffset, 0)
+    }
+
+    func testScrollViewMouseWheelScrollsInsideFrame() {
+        var scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 3), content: ["One", "Two", "Three", "Four"])
+
+        XCTAssertEqual(scrollView.handle(.mouse(MouseEvent(button: .scrollDown, location: Point(x: 3, y: 2), pressed: true))), .scrolled(1))
+        XCTAssertEqual(scrollView.scrollOffset, 1)
+        XCTAssertEqual(scrollView.handle(.mouse(MouseEvent(button: .scrollUp, location: Point(x: 3, y: 2), pressed: true))), .scrolled(0))
+        XCTAssertEqual(scrollView.scrollOffset, 0)
+    }
+
+    func testScrollViewScrollbarDragSetsScrollOffset() {
+        var scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 4), content: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"])
+
+        XCTAssertEqual(scrollView.handle(.mouse(MouseEvent(button: .left, location: Point(x: 13, y: 4), pressed: true))), .scrolled(4))
+        XCTAssertEqual(scrollView.scrollOffset, 4)
+        XCTAssertTrue(scrollView.isFocused)
+    }
+
+    func testScrollViewScrollbarDragClampsToTopAndBottom() {
+        var scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 4), content: ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"])
+
+        _ = scrollView.handle(.mouse(MouseEvent(button: .left, location: Point(x: 13, y: 99), pressed: true)))
+        XCTAssertEqual(scrollView.scrollOffset, 4)
+        _ = scrollView.handle(.mouse(MouseEvent(button: .left, location: Point(x: 13, y: -5), pressed: true)))
+        XCTAssertEqual(scrollView.scrollOffset, 0)
+    }
+
+    func testScrollViewRendersScrollbarWhenContentOverflows() {
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 8))
+        let scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 3), content: ["One", "Two", "Three", "Four", "Five"])
+
+        scrollView.render(in: &canvas)
+
+        XCTAssertEqual(canvas[13, 1].style.background, .blue)
+        XCTAssertEqual(canvas[13, 2].style.background, .brightBlack)
+    }
+
     func testMainViewCanFocusAndActivateButtonWithKeyboard() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -762,6 +830,39 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(view.select.isOpen)
         XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 85, y: 8), pressed: true))), .none)
         XCTAssertEqual(view.select.selectedIndex, 1)
+    }
+
+    func testMainViewCanFocusAndScrollScrollViewWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<6 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .scrollView)
+        XCTAssertEqual(view.handle(.key(.down)), .none)
+        XCTAssertEqual(view.scrollView.scrollOffset, 1)
+    }
+
+    func testMainViewCanFocusAndScrollScrollViewWithMouseWheel() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .scrollDown, location: Point(x: 75, y: 15), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .scrollView)
+        XCTAssertEqual(view.scrollView.scrollOffset, 1)
     }
 
     func testMainViewCanActivateButtonWithMouse() {
@@ -929,6 +1030,24 @@ final class SwiftualTests: XCTestCase {
 
         XCTAssertEqual(canvas[85, 6].character, "A")
         XCTAssertEqual(canvas[91, 6].character, "v")
+    }
+
+    func testDemoRendersScrollViewExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[74, 14].character, "S")
+        XCTAssertEqual(canvas[85, 14].character, "1")
+        XCTAssertEqual(canvas[97, 14].style.background, .blue)
     }
 }
 
