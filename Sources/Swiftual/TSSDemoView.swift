@@ -15,9 +15,10 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     public var stylesheets: [TSSDemoStylesheet]
     public var selectedStylesheetIndex: Int
     public var styleSelector: Select
-    public var sourceView: ScrollView
+    public var sourceView: SyntaxHighlightedScrollView
     public var focusedPanelControl: TSSDemoPanelFocus
     public var panelWidth: Int
+    public var splitView: HorizontalSplitView
     public var panelStyle: TerminalStyle
     public var titleStyle: TerminalStyle
 
@@ -33,9 +34,15 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         self.stylesheets = stylesheets
         self.selectedStylesheetIndex = stylesheets.indices.contains(selectedStylesheetIndex) ? selectedStylesheetIndex : 0
         self.styleSelector = Select(frame: Rect(x: 0, y: 0, width: 1, height: 1), options: stylesheets.map { SelectOption($0.fileName) })
-        self.sourceView = ScrollView(frame: Rect(x: 0, y: 0, width: 1, height: 1), content: [])
+        self.sourceView = SyntaxHighlightedScrollView(frame: Rect(x: 0, y: 0, width: 1, height: 1), source: "")
         self.focusedPanelControl = .selector
         self.panelWidth = panelWidth
+        self.splitView = HorizontalSplitView(
+            frame: Rect(x: 0, y: 1, width: 180, height: 31),
+            dividerOffset: max(10, 180 - panelWidth),
+            minLeading: 60,
+            minTrailing: 32
+        )
         self.panelStyle = panelStyle
         self.titleStyle = titleStyle
         updatePanelControls(for: TerminalSize(columns: 180, rows: 32))
@@ -43,6 +50,14 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
 
     public mutating func handle(_ event: InputEvent, terminalSize: TerminalSize = TerminalSize(columns: 180, rows: 32)) -> MenuCommand {
         updatePanelControls(for: terminalSize)
+
+        if case .mouse = event {
+            let splitCommand = splitView.handle(event)
+            if splitCommand != .none {
+                updatePanelControls(for: terminalSize)
+                return .none
+            }
+        }
 
         if case .mouse(let mouse) = event, panelFrame(for: terminalSize).contains(mouse.location) {
             if styleSelector.frame.contains(mouse.location) || styleSelector.isOpen {
@@ -89,7 +104,15 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
 
     public mutating func render(size: TerminalSize) -> Canvas {
         updatePanelControls(for: size)
-        var canvas = baseDemo.render(size: size)
+        var canvas = Canvas(size: size, fill: Cell(" ", style: baseDemo.backgroundStyle))
+        let leftFrame = splitView.leadingFrame
+        let leftCanvas = baseDemo.render(size: TerminalSize(columns: max(1, leftFrame.width), rows: size.rows))
+        for row in 0..<size.rows {
+            for column in 0..<leftFrame.width {
+                canvas[leftFrame.x + column, row] = leftCanvas[column, row]
+            }
+        }
+        splitView.render(in: &canvas)
         renderPanel(in: &canvas, size: size)
         return canvas
     }
@@ -103,6 +126,13 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     }
 
     private mutating func updatePanelControls(for size: TerminalSize) {
+        let oldFrame = splitView.frame
+        let oldTrailingWidth = oldFrame.width > 0 ? splitView.trailingFrame.width : max(0, panelWidth - splitView.dividerWidth)
+        splitView.frame = Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1))
+        if oldFrame.width != splitView.frame.width {
+            splitView.dividerOffset = max(0, splitView.frame.width - splitView.dividerWidth - oldTrailingWidth)
+        }
+
         let frame = panelFrame(for: size)
         let selectorWidth = max(1, frame.width - 4)
         styleSelector.frame = Rect(x: frame.x + 2, y: frame.y + 3, width: selectorWidth, height: 1)
@@ -116,16 +146,14 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     }
 
     private mutating func updateSourceContent() {
-        sourceView.content = selectedStylesheet.source.components(separatedBy: .newlines)
-        sourceView.contentHeight = sourceView.content.count
-        sourceView.scrollOffset = min(sourceView.scrollOffset, max(0, sourceView.content.count - sourceView.frame.height))
+        sourceView.source = selectedStylesheet.source
+        sourceView.scrollOffset = min(sourceView.scrollOffset, max(0, sourceView.contentHeight - sourceView.frame.height))
     }
 
     private func renderPanel(in canvas: inout Canvas, size: TerminalSize) {
         let frame = panelFrame(for: size)
         guard frame.width > 0, frame.height > 0 else { return }
         canvas.fill(rect: frame, style: panelStyle)
-        canvas.fill(rect: Rect(x: frame.x, y: frame.y, width: 1, height: frame.height), style: TerminalStyle(foreground: .brightWhite, background: .blue), character: " ")
         Label("TCSS test files", frame: Rect(x: frame.x + 2, y: frame.y + 1, width: max(0, frame.width - 4), height: 1), style: titleStyle).render(in: &canvas)
         Label("Selected stylesheet", frame: Rect(x: frame.x + 2, y: frame.y + 2, width: max(0, frame.width - 4), height: 1), style: panelStyle).render(in: &canvas)
         Label("Source preview", frame: Rect(x: frame.x + 2, y: frame.y + 5, width: max(0, frame.width - 4), height: 1), style: panelStyle).render(in: &canvas)
@@ -141,8 +169,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     }
 
     private func panelFrame(for size: TerminalSize) -> Rect {
-        let width = min(panelWidth, max(0, size.columns))
-        return Rect(x: max(0, size.columns - width), y: 1, width: width, height: max(0, size.rows - 1))
+        splitView.trailingFrame
     }
 
     public static func frozenBaseDemo() -> MainViewContainer {
@@ -175,9 +202,11 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 """
             ),
             TSSDemoStylesheet(
-                fileName: "01-buttons-labels.tcss",
+                fileName: "01-current-target.tcss",
                 source: """
-                /* First parser target: Button and Label. */
+                /* Current target set for the active implementation step.
+                   Use this file to isolate whichever controls we are touching now.
+                   TCSS should eventually apply across every matching control. */
                 Button {
                     background: bright-white;
                     color: black;
@@ -198,10 +227,14 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 """
             ),
             TSSDemoStylesheet(
-                fileName: "02-inputs-choice.tcss",
+                fileName: "02-pseudo-states.tcss",
                 source: """
-                /* Next target: input and choice controls. */
-                TextInput:focus {
+                /* Feature set: pseudo-states on any control that exposes state. */
+                Button:focus,
+                TextInput:focus,
+                Select:open,
+                Tree:selected,
+                DataTable:selected {
                     background: blue;
                     color: bright-white;
                 }
@@ -219,9 +252,14 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 """
             ),
             TSSDemoStylesheet(
-                fileName: "03-data-navigation.tcss",
+                fileName: "03-combinators.tcss",
                 source: """
-                /* Later target: scrollable and structured controls. */
+                /* Feature set: child and descendant selector matching. */
+                MenuBar > Menu {
+                    background: blue;
+                    color: bright-white;
+                }
+
                 DataTable > Header {
                     background: cyan;
                     color: black;
@@ -237,6 +275,98 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 RichLog {
                     background: black;
                     color: bright-white;
+                }
+                """
+            ),
+            TSSDemoStylesheet(
+                fileName: "04-big.tcss",
+                source: """
+                /* Edge case: absurdly large element requests.
+                   This is for parser/model/layout stress testing, not good UI. */
+                Button,
+                TextInput,
+                Select {
+                    width: 120;
+                    height: 8;
+                    padding: 6;
+                }
+
+                Modal {
+                    width: 160;
+                    height: 40;
+                    padding: 8;
+                }
+
+                ProgressBar,
+                RichLog,
+                DataTable,
+                Tree {
+                    width: 180;
+                    height: 30;
+                }
+                """
+            ),
+            TSSDemoStylesheet(
+                fileName: "05-small.tcss",
+                source: """
+                /* Edge case: tiny element requests.
+                   Controls should clamp, crop, or degrade predictably. */
+                Button,
+                TextInput,
+                Select,
+                ProgressBar {
+                    width: 1;
+                    height: 1;
+                    padding: 0;
+                }
+
+                Modal,
+                RichLog,
+                DataTable,
+                Tree,
+                ScrollView {
+                    width: 2;
+                    height: 1;
+                    padding: 0;
+                }
+                """
+            ),
+            TSSDemoStylesheet(
+                fileName: "06-that70sShow.tcss",
+                source: """
+                /* Never do this, but it is good to know you can.
+                   Obnoxious 1970s hippie-van color flexibility demo. */
+                Screen {
+                    background: rgb(255, 112, 67);
+                    color: rgb(0, 255, 213);
+                }
+
+                MenuBar,
+                Button:focus {
+                    background: rgb(156, 39, 176);
+                    color: rgb(255, 235, 59);
+                    text-style: bold;
+                }
+
+                Label.centered,
+                ProgressBar {
+                    background: rgb(0, 188, 212);
+                    color: rgb(255, 64, 129);
+                }
+
+                Checkbox:checked,
+                Switch:on,
+                Select:open {
+                    background: rgb(139, 195, 74);
+                    color: rgb(74, 20, 140);
+                    text-style: bold;
+                }
+
+                RichLog,
+                DataTable > Header,
+                Tree:selected {
+                    background: rgb(255, 193, 7);
+                    color: rgb(63, 81, 181);
                 }
                 """
             )

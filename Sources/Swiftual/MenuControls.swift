@@ -810,12 +810,36 @@ public struct MainViewContainer: Equatable, Sendable {
             value: workerManager.state == .idle ? 0 : workerManager.progress,
             label: "Worker"
         ).render(in: &canvas)
+        let logSplit = logSplitView(for: size)
+        logSplit.render(in: &canvas)
+        var richLog = richLog
+        richLog.frame = richLogFrame(in: logSplit.bottomFrame)
         richLog.render(in: &canvas)
         modal.render(in: &canvas)
         commandPalette.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
+    }
+
+    private func logSplitView(for size: TerminalSize) -> VerticalSplitView {
+        let frame = Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1))
+        let preferredOffset = max(21, frame.height - 7)
+        return VerticalSplitView(
+            frame: frame,
+            dividerOffset: preferredOffset,
+            minTop: 8,
+            minBottom: 2
+        )
+    }
+
+    private func richLogFrame(in bottomPane: Rect) -> Rect {
+        Rect(
+            x: bottomPane.x + 2,
+            y: bottomPane.y,
+            width: max(0, bottomPane.width - 4),
+            height: bottomPane.height
+        )
     }
 
     public static func defaultDemoLabels() -> [Label] {

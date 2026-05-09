@@ -18,17 +18,21 @@ swift run swiftual-tss-demo --vt100
 ## Layout
 
 - The original demo remains on the left as the baseline.
+- The original demo and right panel are separated by a draggable `HorizontalSplitView` divider.
 - The right panel starts below the blue menu bar.
-- A selector at the top chooses a sample stylesheet.
-- A scrollable source preview below shows the selected stylesheet text.
-- The panel is intentionally separate so stylesheet parsing and per-control application can be tested one control at a time.
+- A selector at the top chooses a sample stylesheet feature set.
+- A scrollable source preview below shows the selected stylesheet text with RichSwift syntax highlighting and line numbers.
+- The panel is intentionally separate so stylesheet parsing and application can be tested across the whole control set without changing the frozen baseline demo.
 
 ## Included Stylesheets
 
 - `00-baseline.tcss`: captures the frozen Swift styling.
-- `01-buttons-labels.tcss`: first target for Button and Label selectors.
-- `02-inputs-choice.tcss`: target for TextInput, Checkbox, Switch, and Select.
-- `03-data-navigation.tcss`: target for DataTable, Tree, ScrollView, and RichLog.
+- `01-current-target.tcss`: scratch/current-step stylesheet for isolating whichever controls we are actively implementing.
+- `02-pseudo-states.tcss`: pseudo-state feature set such as `:focus`, `:checked`, `:on`, `:open`, and `:selected`.
+- `03-combinators.tcss`: child and descendant selector feature set.
+- `04-big.tcss`: absurdly large sizing requests for layout stress testing.
+- `05-small.tcss`: tiny sizing requests for clipping and minimum-size edge cases.
+- `06-that70sShow.tcss`: intentionally obnoxious bright-color flexibility demo. Never do this, but it is good to know you can.
 
 ## Keyboard Behavior
 
@@ -43,11 +47,12 @@ swift run swiftual-tss-demo --vt100
 - Click the stylesheet selector to open it.
 - Click a stylesheet name to switch the displayed source text.
 - Mouse wheel scrolls the source preview.
+- Drag the blue divider to resize the frozen demo and stylesheet panel.
 - Mouse and keyboard behavior outside the right panel continues to route to the frozen baseline demo.
 
 ## Current Scope
 
-The harness currently switches and displays stylesheet source. It does not yet parse or apply TCSS declarations to controls. That implementation is tracked in the plan as an indented per-control checklist under the optional TCSS layer.
+The harness currently switches and displays stylesheet source. The parser exists as `TCSSParser`, but the harness does not yet display diagnostics or apply parsed declarations to controls. TCSS files are feature-set tests and should eventually apply to all matching controls. `01-current-target.tcss` is the exception: it is the rolling scratch file for the isolated controls we are targeting in the current implementation step.
 
 ## Test Checklist
 

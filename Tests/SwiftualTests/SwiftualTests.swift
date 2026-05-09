@@ -1406,10 +1406,64 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: TerminalSize(columns: 180, rows: 32))
 
-        XCTAssertEqual(canvas[128, 2].character, "T")
-        XCTAssertEqual(canvas[129, 4].character, "0")
-        XCTAssertEqual(canvas[128, 7].character, "/")
+        XCTAssertEqual(canvas[129, 2].character, "T")
+        XCTAssertEqual(canvas[130, 4].character, "0")
+        XCTAssertEqual(canvas[130, 7].character, "1")
+        XCTAssertEqual(canvas[134, 7].character, "/")
         XCTAssertEqual(canvas[126, 1].style.background, .blue)
+    }
+
+    func testTSSDemoDividerDragResizesStylesheetPanel() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+        let size = TerminalSize(columns: 180, rows: 32)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 126, y: 10), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 118, y: 10), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .release, location: Point(x: 118, y: 10), pressed: false)), terminalSize: size), .none)
+
+        let canvas = view.render(size: size)
+        XCTAssertEqual(canvas[118, 1].style.background, .blue)
+        XCTAssertEqual(canvas[121, 2].character, "T")
+    }
+
+    func testHorizontalSplitViewComputesFramesAndDragsDivider() {
+        var split = HorizontalSplitView(
+            frame: Rect(x: 2, y: 1, width: 20, height: 8),
+            dividerOffset: 8,
+            minLeading: 4,
+            minTrailing: 5
+        )
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 12))
+
+        split.render(in: &canvas)
+
+        XCTAssertEqual(split.leadingFrame, Rect(x: 2, y: 1, width: 8, height: 8))
+        XCTAssertEqual(split.dividerFrame, Rect(x: 10, y: 1, width: 1, height: 8))
+        XCTAssertEqual(split.trailingFrame, Rect(x: 11, y: 1, width: 11, height: 8))
+        XCTAssertEqual(canvas[10, 4].style.background, .blue)
+        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 4), pressed: true))), .focused)
+        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 15, y: 4), pressed: true))), .resized(13))
+        XCTAssertEqual(split.dividerFrame.x, 15)
+    }
+
+    func testVerticalSplitViewComputesFramesAndDragsDivider() {
+        var split = VerticalSplitView(
+            frame: Rect(x: 2, y: 1, width: 20, height: 12),
+            dividerOffset: 5,
+            minTop: 3,
+            minBottom: 4
+        )
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 16))
+
+        split.render(in: &canvas)
+
+        XCTAssertEqual(split.topFrame, Rect(x: 2, y: 1, width: 20, height: 5))
+        XCTAssertEqual(split.dividerFrame, Rect(x: 2, y: 6, width: 20, height: 1))
+        XCTAssertEqual(split.bottomFrame, Rect(x: 2, y: 7, width: 20, height: 6))
+        XCTAssertEqual(canvas[10, 6].style.background, .blue)
+        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 6), pressed: true))), .focused)
+        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 9), pressed: true))), .resized(7))
+        XCTAssertEqual(split.dividerFrame.y, 8)
     }
 
     func testTSSDemoSelectorSwitchesDisplayedStylesheetText() {
@@ -1422,8 +1476,102 @@ final class SwiftualTests: XCTestCase {
 
         XCTAssertEqual(view.selectedStylesheetIndex, 1)
         XCTAssertFalse(view.styleSelector.isOpen)
-        XCTAssertTrue(view.sourceView.content.contains("/* First parser target: Button and Label. */"))
-        XCTAssertTrue(view.baseDemo.richLog.entries.map(\.message).contains("TCSS demo selected: 01-buttons-labels.tcss."))
+        XCTAssertTrue(view.sourceView.source.contains("/* Current target set for the active implementation step."))
+        XCTAssertTrue(view.baseDemo.richLog.entries.map(\.message).contains("TCSS demo selected: 01-current-target.tcss."))
+    }
+
+    func testSyntaxHighlightedScrollViewUsesRichSwiftSyntaxColors() {
+        var canvas = Canvas(size: TerminalSize(columns: 40, rows: 4))
+        let preview = SyntaxHighlightedScrollView(
+            frame: Rect(x: 0, y: 0, width: 40, height: 4),
+            source: "Button {\n    background: blue;\n}",
+            lineNumbers: false
+        )
+
+        preview.render(in: &canvas)
+
+        XCTAssertEqual(canvas[4, 1].character, "b")
+        XCTAssertEqual(canvas[4, 1].style.foreground, .magenta)
+        XCTAssertTrue(canvas[4, 1].style.bold)
+    }
+
+    func testTSSDemoIncludesEdgeCaseStylesheets() {
+        let stylesheets = TSSDemoViewContainer.defaultStylesheets()
+
+        XCTAssertTrue(stylesheets.map(\.fileName).contains("04-big.tcss"))
+        XCTAssertTrue(stylesheets.map(\.fileName).contains("05-small.tcss"))
+        XCTAssertTrue(stylesheets.map(\.fileName).contains("06-that70sShow.tcss"))
+        XCTAssertTrue(stylesheets.first(where: { $0.fileName == "06-that70sShow.tcss" })?.source.contains("Never do this") == true)
+    }
+
+    func testTCSSParserParsesCommentsSelectorsPseudoStatesAndDeclarations() {
+        let source = """
+        /* first target */
+        Button:focus,
+        Label.centered {
+            background: blue;
+            color: bright-white;
+            text-style: bold;
+        }
+        """
+
+        let stylesheet = TCSSParser().parse(source)
+
+        XCTAssertTrue(stylesheet.diagnostics.isEmpty)
+        XCTAssertEqual(stylesheet.rules.count, 1)
+        XCTAssertEqual(stylesheet.rules[0].selectors.count, 2)
+        XCTAssertEqual(stylesheet.rules[0].selectors[0].segments[0].typeName, "Button")
+        XCTAssertEqual(stylesheet.rules[0].selectors[0].segments[0].pseudoStates, ["focus"])
+        XCTAssertEqual(stylesheet.rules[0].selectors[1].segments[0].typeName, "Label")
+        XCTAssertEqual(stylesheet.rules[0].selectors[1].segments[0].classNames, ["centered"])
+        XCTAssertEqual(stylesheet.rules[0].declarations, [
+            TCSSDeclaration(property: "background", value: "blue", line: 4),
+            TCSSDeclaration(property: "color", value: "bright-white", line: 5),
+            TCSSDeclaration(property: "text-style", value: "bold", line: 6)
+        ])
+    }
+
+    func testTCSSParserParsesChildAndDescendantCombinators() {
+        let source = """
+        DataTable > Header {
+            background: cyan;
+        }
+
+        ScrollView ScrollBarThumb {
+            background: blue;
+        }
+        """
+
+        let stylesheet = TCSSParser().parse(source)
+
+        XCTAssertTrue(stylesheet.diagnostics.isEmpty)
+        XCTAssertEqual(stylesheet.rules[0].selectors[0].segments.map(\.typeName), ["DataTable", "Header"])
+        XCTAssertEqual(stylesheet.rules[0].selectors[0].segments[1].combinator, .child)
+        XCTAssertEqual(stylesheet.rules[1].selectors[0].segments.map(\.typeName), ["ScrollView", "ScrollBarThumb"])
+        XCTAssertEqual(stylesheet.rules[1].selectors[0].segments[1].combinator, .descendant)
+    }
+
+    func testTCSSParserReportsDiagnosticsForMalformedBlocks() {
+        let source = """
+        Button {
+            background blue;
+            color:
+        }
+
+        }
+
+        Label {
+            color: cyan;
+        """
+
+        let stylesheet = TCSSParser().parse(source)
+        let messages = stylesheet.diagnostics.map(\.message)
+
+        XCTAssertTrue(messages.contains("Expected ':' in declaration 'background blue'."))
+        XCTAssertTrue(messages.contains("Declaration 'color' is missing a value."))
+        XCTAssertTrue(messages.contains("Unexpected '}' without a matching block."))
+        XCTAssertTrue(messages.contains("Unclosed declaration block for selector 'Label'."))
+        XCTAssertEqual(stylesheet.rules.count, 2)
     }
 
     func testMainViewLogsControlActions() {
@@ -1761,9 +1909,10 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
 
-        XCTAssertEqual(canvas[3, 20].character, "R")
-        XCTAssertEqual(canvas[2, 21].character, "R")
-        XCTAssertEqual(canvas[7, 21].character, ":")
+        XCTAssertEqual(canvas[10, 21].style.background, .blue)
+        XCTAssertEqual(canvas[3, 22].character, "R")
+        XCTAssertEqual(canvas[2, 23].character, "R")
+        XCTAssertEqual(canvas[7, 23].character, ":")
     }
 
     func testDemoRendersDataTableExample() {

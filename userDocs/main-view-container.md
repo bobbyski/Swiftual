@@ -1,6 +1,6 @@
 # Main View Container
 
-`MainViewContainer` is the current root container for the demo. It owns the menu bar, a grey full-screen body, and the first button control.
+`MainViewContainer` is the current root container for the demo. It owns the menu bar, a grey full-screen body, the demo controls, and a bottom rich-log pane.
 
 ## Behavior
 
@@ -9,7 +9,9 @@ The container renders:
 - A blue menu bar at the top row.
 - A grey body filling the remaining terminal area.
 - Demo text in the body.
-- A one-row `Quit` button.
+- Demo controls in the top pane.
+- A fixed `VerticalSplitView` divider.
+- A `RichLog` in the bottom pane.
 
 ## Focus
 
@@ -19,23 +21,36 @@ The current focus enum is:
 public enum MainViewFocus {
     case menuBar
     case button
+    case textInput
+    case checkbox
+    case `switch`
+    case select
+    case scrollView
+    case modalButton
+    case progressButton
+    case dataTable
+    case tree
+    case commandPaletteButton
+    case workerButton
 }
 ```
 
-`Tab` moves focus between the menu bar and the button when the menu is not open.
+`Tab` moves focus through the interactive controls when the menu is not open.
 
 ## Input Routing
 
 - Menu bar focus sends events to `MenuBar`.
 - Button focus sends events to `Button`.
-- A mouse click inside the button frame focuses and activates the button.
-- A mouse click outside the button can return routing to the menu bar.
+- Mouse clicks focus and route to the control under the pointer.
+- The modal and command palette render as overlays when active.
+- The rich log records actions but is not currently interactive.
 
 ## Test Checklist
 
 - The body fills all rows below the menu bar with the configured background.
 - The menu bar renders over the body on row zero.
-- `Tab` can move focus to the button.
-- `Enter` on the focused button activates it.
-- Mouse click inside the button frame activates it.
-
+- The fixed vertical split divider renders above the bottom log pane.
+- The rich log renders in the bottom split pane.
+- `Tab` can move focus through the controls.
+- `Enter` on a focused activatable control triggers it.
+- Mouse click inside a control frame activates or focuses it.
