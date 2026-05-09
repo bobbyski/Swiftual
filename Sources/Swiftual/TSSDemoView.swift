@@ -141,6 +141,15 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         baseDemo.menuBar.barStyle = menuBarStyle.terminalStyle.applied(to: baseDemo.menuBar.barStyle)
         baseDemo.menuBar.selectedBarStyle = menuBarStyle.terminalStyle.applied(to: baseDemo.menuBar.selectedBarStyle)
 
+        let menuStyle = cascade.style(for: TCSSStyleContext(typeName: "Menu"))
+        baseDemo.menuBar.menuStyle = menuStyle.terminalStyle.applied(to: baseDemo.menuBar.menuStyle)
+
+        let menuItemStyle = cascade.style(for: TCSSStyleContext(typeName: "MenuItem"))
+        baseDemo.menuBar.selectedItemStyle = menuItemStyle.terminalStyle.applied(to: baseDemo.menuBar.selectedItemStyle)
+
+        let disabledMenuItemStyle = cascade.style(for: TCSSStyleContext(typeName: "MenuItem", pseudoStates: ["disabled"]))
+        baseDemo.menuBar.disabledItemStyle = disabledMenuItemStyle.terminalStyle.applied(to: baseDemo.menuBar.disabledItemStyle)
+
         if logSelection {
             baseDemo.richLog.append("TCSS demo selected: \(selectedStylesheet.fileName).", style: TerminalStyle(foreground: .cyan, background: .black))
             if !stylesheetDiagnostics.isEmpty {
@@ -379,6 +388,22 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                     background: rgb(156, 39, 176);
                     color: rgb(255, 235, 59);
                     text-style: bold;
+                }
+
+                Menu {
+                    background: rgb(255, 64, 129);
+                    color: rgb(0, 255, 213);
+                }
+
+                MenuItem {
+                    background: rgb(0, 188, 212);
+                    color: rgb(74, 20, 140);
+                    text-style: bold;
+                }
+
+                MenuItem:disabled {
+                    background: rgb(96, 125, 139);
+                    color: rgb(255, 235, 59);
                 }
 
                 Label.centered,

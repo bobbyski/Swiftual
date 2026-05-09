@@ -31,6 +31,8 @@ Current default styling:
 - Selected item: bright white text on blue background.
 - Disabled item: white text on bright black background.
 
+The optional TCSS demo applies `Menu` rules to the popup background and normal item style. Pure Swift styling remains available through `MenuBar.menuStyle`.
+
 ## Test Checklist
 
 - Popup appears below the selected top-level menu.
@@ -38,4 +40,3 @@ Current default styling:
 - Last enabled item is selected when opening with Up.
 - Disabled items cannot activate.
 - Selection wraps when moving beyond the first or last item.
-

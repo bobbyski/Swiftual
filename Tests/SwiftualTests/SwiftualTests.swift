@@ -1545,11 +1545,18 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.baseDemo.menuBar.barStyle.background, .rgb(156, 39, 176))
         XCTAssertEqual(view.baseDemo.menuBar.barStyle.foreground, .rgb(255, 235, 59))
         XCTAssertTrue(view.baseDemo.menuBar.barStyle.bold)
+        XCTAssertEqual(view.baseDemo.menuBar.menuStyle.background, .rgb(255, 64, 129))
+        XCTAssertEqual(view.baseDemo.menuBar.menuStyle.foreground, .rgb(0, 255, 213))
+        XCTAssertEqual(view.baseDemo.menuBar.selectedItemStyle.background, .rgb(0, 188, 212))
+        XCTAssertEqual(view.baseDemo.menuBar.selectedItemStyle.foreground, .rgb(74, 20, 140))
 
+        view.baseDemo.menuBar.openedMenuIndex = 0
         let canvas = view.render(size: size)
         XCTAssertEqual(canvas[20, 0].style.background, .rgb(156, 39, 176))
         XCTAssertEqual(canvas[20, 0].style.foreground, .rgb(255, 235, 59))
         XCTAssertEqual(canvas[20, 2].style.background, .rgb(255, 112, 67))
+        XCTAssertEqual(canvas[8, 1].style.background, .rgb(0, 188, 212))
+        XCTAssertEqual(canvas[8, 1].style.foreground, .rgb(74, 20, 140))
     }
 
     func testTSSDemoSwitchingBackToBaselineResetsTCSSAppliedStyles() {
@@ -1565,6 +1572,8 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.selectedStylesheetIndex, 0)
         XCTAssertEqual(view.baseDemo.backgroundStyle.background, .brightBlack)
         XCTAssertEqual(view.baseDemo.menuBar.barStyle.background, .blue)
+        XCTAssertEqual(view.baseDemo.menuBar.menuStyle.background, .brightBlack)
+        XCTAssertEqual(view.baseDemo.menuBar.selectedItemStyle.background, .blue)
     }
 
     func testSyntaxHighlightedScrollViewUsesRichSwiftSyntaxColors() {

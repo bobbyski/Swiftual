@@ -27,10 +27,13 @@ A menu item activates when:
 
 In the current demo, an item titled `Quit` also returns a `.quit` command to the app loop.
 
+## Styling
+
+The optional TCSS demo applies `MenuItem` rules to selected menu item styling and `MenuItem:disabled` rules to disabled item styling. Pure Swift styling remains available through `MenuBar.selectedItemStyle` and `MenuBar.disabledItemStyle`.
+
 ## Test Checklist
 
 - Enabled items can activate.
 - Disabled items do not activate.
 - Shortcut text appears in the rendered row.
 - The `Quit` item exits the demo.
-

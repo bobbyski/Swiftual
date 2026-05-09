@@ -45,13 +45,15 @@ Descendant and child combinators are parsed but are not matched by the cascade y
 
 - `Screen`, through the base demo background style.
 - `MenuBar`, through the menu bar's Swift style properties.
+- `Menu`, through the popup menu style.
+- `MenuItem`, through selected and disabled menu item styles.
 
-This means selecting `06-that70sShow.tcss` should visibly change the live demo background and menu bar colors, not only the source preview.
+This means selecting `06-that70sShow.tcss` should visibly change the live demo background, menu bar, and open File dropdown colors, not only the source preview.
 
 ## Test Checklist
 
 - Type, class, ID, and pseudo-state selectors match contexts.
 - Higher specificity beats lower specificity.
 - Later source order wins when specificity ties.
-- Switching TCSS files in the demo applies live `Screen` and `MenuBar` styles.
+- Switching TCSS files in the demo applies live `Screen`, `MenuBar`, `Menu`, and `MenuItem` styles.
 - Switching back to baseline resets demo styles instead of retaining values from the previous stylesheet.
