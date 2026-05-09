@@ -63,7 +63,17 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         if count < 0 {
             throw TerminalError.readFailed(errno)
         }
-        return Array(buffer.prefix(count))
+
+        var bytes = Array(buffer.prefix(count))
+        while bytes.count < maxBytes, hasPendingInput() {
+            var next: UInt8 = 0
+            let nextCount = Darwin.read(input, &next, 1)
+            if nextCount <= 0 {
+                break
+            }
+            bytes.append(next)
+        }
+        return bytes
     }
 
     public func writeOutput(_ output: String) throws {
@@ -111,6 +121,35 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         guard var originalTermios else { return }
         tcsetattr(input, TCSAFLUSH, &originalTermios)
         self.originalTermios = nil
+    }
+
+    private func hasPendingInput() -> Bool {
+        var readSet = fd_set()
+        fdZero(&readSet)
+        fdSet(input, set: &readSet)
+        var timeout = timeval(tv_sec: 0, tv_usec: 1_000)
+        return select(input + 1, &readSet, nil, nil, &timeout) > 0
+    }
+}
+
+private func fdZero(_ set: inout fd_set) {
+    withUnsafeMutablePointer(to: &set) { pointer in
+        pointer.withMemoryRebound(to: Int32.self, capacity: MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) { words in
+            for index in 0..<(MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) {
+                words[index] = 0
+            }
+        }
+    }
+}
+
+private func fdSet(_ fd: Int32, set: inout fd_set) {
+    let intBits = Int32(MemoryLayout<Int32>.size * 8)
+    let index = Int(fd / intBits)
+    let bit = fd % intBits
+    withUnsafeMutablePointer(to: &set) { pointer in
+        pointer.withMemoryRebound(to: Int32.self, capacity: MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) { words in
+            words[index] |= 1 << bit
+        }
     }
 }
 

@@ -247,6 +247,173 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[2, 2].character, " ")
     }
 
+    func testHorizontalPlacesChildrenWithSpacing() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 4))
+        let horizontal = Horizontal(
+            frame: Rect(x: 2, y: 1, width: 18, height: 1),
+            spacing: 2,
+            children: [
+                AnyCanvasRenderable(Label("One", frame: Rect(x: 0, y: 0, width: 3, height: 1))),
+                AnyCanvasRenderable(Label("Two", frame: Rect(x: 0, y: 0, width: 3, height: 1)))
+            ]
+        )
+
+        horizontal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "O")
+        XCTAssertEqual(canvas[7, 1].character, "T")
+    }
+
+    func testHorizontalAppliesFillStyle() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 4))
+        let horizontal = Horizontal(
+            frame: Rect(x: 2, y: 1, width: 18, height: 2),
+            fillStyle: TerminalStyle(foreground: .white, background: .black),
+            children: []
+        )
+
+        horizontal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].style.background, .black)
+        XCTAssertEqual(canvas[19, 2].style.background, .black)
+    }
+
+    func testHorizontalClipsChildrenToContainerWidth() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 4))
+        let horizontal = Horizontal(
+            frame: Rect(x: 2, y: 1, width: 4, height: 1),
+            children: [
+                AnyCanvasRenderable(Label("Overflow", frame: Rect(x: 0, y: 0, width: 8, height: 1))),
+                AnyCanvasRenderable(Label("Two", frame: Rect(x: 0, y: 0, width: 3, height: 1)))
+            ]
+        )
+
+        horizontal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "O")
+        XCTAssertEqual(canvas[5, 1].character, "r")
+        XCTAssertEqual(canvas[6, 1].character, " ")
+    }
+
+    func testTextInputRendersPlaceholderWhenUnfocusedAndEmpty() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 4))
+        let input = TextInput(placeholder: "Name", frame: Rect(x: 2, y: 1, width: 10, height: 1))
+
+        input.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "N")
+        XCTAssertEqual(canvas[3, 1].style.foreground, .white)
+        XCTAssertEqual(canvas[3, 1].style.background, .black)
+    }
+
+    func testTextInputInsertsCharactersWhenFocused() {
+        var input = TextInput(text: "Hi", frame: Rect(x: 0, y: 0, width: 10, height: 1), isFocused: true)
+
+        XCTAssertEqual(input.handle(.key(.character("!"))), .changed("Hi!"))
+        XCTAssertEqual(input.text, "Hi!")
+        XCTAssertEqual(input.cursorIndex, 3)
+    }
+
+    func testTextInputBackspaceRemovesCharacterBeforeCursor() {
+        var input = TextInput(text: "H!", frame: Rect(x: 0, y: 0, width: 10, height: 1), cursorIndex: 2, isFocused: true)
+
+        XCTAssertEqual(input.handle(.key(.backspace)), .changed("H"))
+        XCTAssertEqual(input.text, "H")
+        XCTAssertEqual(input.cursorIndex, 1)
+    }
+
+    func testTextInputMovesCursorLeftAndRight() {
+        var input = TextInput(text: "Hello", frame: Rect(x: 0, y: 0, width: 10, height: 1), cursorIndex: 3, isFocused: true)
+
+        XCTAssertEqual(input.handle(.key(.left)), .cursorMoved(2))
+        XCTAssertEqual(input.cursorIndex, 2)
+        XCTAssertEqual(input.handle(.key(.right)), .cursorMoved(3))
+        XCTAssertEqual(input.cursorIndex, 3)
+    }
+
+    func testTextInputSubmitsOnEnter() {
+        var input = TextInput(text: "Hello", frame: Rect(x: 0, y: 0, width: 10, height: 1), isFocused: true)
+
+        XCTAssertEqual(input.handle(.key(.enter)), .submitted("Hello"))
+    }
+
+    func testTextInputMouseClickFocusesAndMovesCursor() {
+        var input = TextInput(text: "Hello", frame: Rect(x: 2, y: 1, width: 10, height: 1))
+
+        XCTAssertEqual(input.handle(.mouse(MouseEvent(button: .left, location: Point(x: 5, y: 1), pressed: true))), .focused)
+        XCTAssertTrue(input.isFocused)
+        XCTAssertEqual(input.cursorIndex, 2)
+    }
+
+    func testTextInputScrollsHorizontallyToKeepCursorVisibleAtEnd() {
+        var canvas = Canvas(size: TerminalSize(columns: 16, rows: 3))
+        let input = TextInput(text: "abcdef", frame: Rect(x: 0, y: 0, width: 5, height: 1), cursorIndex: 6, isFocused: true)
+
+        input.render(in: &canvas)
+
+        XCTAssertEqual(canvas[1, 0].character, "e")
+        XCTAssertEqual(canvas[2, 0].character, "f")
+        XCTAssertEqual(canvas[3, 0].character, " ")
+        XCTAssertEqual(canvas[3, 0].style.background, .brightWhite)
+    }
+
+    func testTextInputScrollsBackWhenCursorMovesLeft() {
+        var canvas = Canvas(size: TerminalSize(columns: 16, rows: 3))
+        let input = TextInput(text: "abcdef", frame: Rect(x: 0, y: 0, width: 5, height: 1), cursorIndex: 2, isFocused: true)
+
+        input.render(in: &canvas)
+
+        XCTAssertEqual(canvas[1, 0].character, "a")
+        XCTAssertEqual(canvas[2, 0].character, "b")
+        XCTAssertEqual(canvas[3, 0].character, "c")
+        XCTAssertEqual(canvas[3, 0].style.background, .brightWhite)
+    }
+
+    func testTextInputBlockCursorHighlightsCurrentCharacterWhileBackingUp() {
+        var canvas = Canvas(size: TerminalSize(columns: 32, rows: 3))
+        let input = TextInput(text: "Johnny five is alive", frame: Rect(x: 0, y: 0, width: 24, height: 1), cursorIndex: 17, isFocused: true)
+
+        input.render(in: &canvas)
+
+        XCTAssertEqual(canvas[18, 0].character, "i")
+        XCTAssertEqual(canvas[18, 0].style.background, .brightWhite)
+    }
+
+    func testTextInputLeftFromEndHighlightsLastCharacter() {
+        var input = TextInput(text: "alive", frame: Rect(x: 0, y: 0, width: 10, height: 1), cursorIndex: 5, isFocused: true)
+        var canvas = Canvas(size: TerminalSize(columns: 16, rows: 3))
+
+        XCTAssertEqual(input.handle(.key(.left)), .cursorMoved(4))
+        input.render(in: &canvas)
+
+        XCTAssertEqual(canvas[5, 0].character, "e")
+        XCTAssertEqual(canvas[5, 0].style.background, .brightWhite)
+    }
+
+    func testInputParserSplitsRepeatedArrowSequences() {
+        let events = InputParser().parse(Array("\u{1B}[D\u{1B}[D\u{1B}[C".utf8))
+
+        XCTAssertEqual(events, [.key(.left), .key(.left), .key(.right)])
+    }
+
+    func testInputParserHandlesAlternateAndModifiedArrowSequences() {
+        XCTAssertEqual(InputParser().parse(Array("\u{1B}OD".utf8)), [.key(.left)])
+        XCTAssertEqual(InputParser().parse(Array("\u{1B}OC".utf8)), [.key(.right)])
+        XCTAssertEqual(InputParser().parse(Array("\u{1B}[1;2D".utf8)), [.key(.left)])
+        XCTAssertEqual(InputParser().parse(Array("\u{1B}[1;2C".utf8)), [.key(.right)])
+    }
+
+    func testTextInputRepeatedLeftAndRightSequencesMoveOneStepEach() {
+        var input = TextInput(text: "alive", frame: Rect(x: 0, y: 0, width: 10, height: 1), cursorIndex: 5, isFocused: true)
+        let events = InputParser().parse(Array("\u{1B}[D\u{1B}[D\u{1B}[C".utf8))
+
+        for event in events {
+            _ = input.handle(event)
+        }
+
+        XCTAssertEqual(input.cursorIndex, 4)
+    }
+
     func testMainViewCanFocusAndActivateButtonWithKeyboard() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -261,6 +428,39 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.handle(.key(.tab)), .none)
         XCTAssertEqual(view.focusedControl, .button)
         XCTAssertEqual(view.handle(.key(.enter)), .quit)
+    }
+
+    func testMainViewCanFocusAndEditTextInputWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.key(.tab)), .none)
+        XCTAssertEqual(view.handle(.key(.tab)), .none)
+        XCTAssertEqual(view.focusedControl, .textInput)
+        XCTAssertEqual(view.handle(.key(.character("!"))), .none)
+        XCTAssertEqual(view.textInput.text, "Swift!")
+    }
+
+    func testMainViewCanFocusTextInputWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 20, y: 6), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .textInput)
     }
 
     func testMainViewCanActivateButtonWithMouse() {
@@ -335,6 +535,44 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[2, 16].character, "C")
         XCTAssertEqual(canvas[4, 18].character, "C")
         XCTAssertEqual(canvas[2, 14].style.background, .black)
+    }
+
+    func testDemoRendersHorizontalContainerExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 80, rows: 24))
+
+        XCTAssertEqual(canvas[36, 14].character, "H")
+        XCTAssertEqual(canvas[52, 14].character, "O")
+        XCTAssertEqual(canvas[62, 14].character, "T")
+        XCTAssertEqual(canvas[36, 14].style.background, .black)
+        XCTAssertEqual(canvas[62, 14].style.background, .blue)
+    }
+
+    func testDemoRendersTextInputExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 80, rows: 24))
+
+        XCTAssertEqual(canvas[19, 6].character, "S")
+        XCTAssertEqual(canvas[19, 6].style.background, .black)
+        XCTAssertEqual(canvas[18, 6].style.background, .black)
     }
 }
 

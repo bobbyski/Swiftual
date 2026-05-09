@@ -7,6 +7,7 @@ public protocol CanvasRenderable: Sendable {
 
 extension Label: CanvasRenderable {}
 extension Button: CanvasRenderable {}
+extension Checkbox: CanvasRenderable {}
 
 public struct AnyCanvasRenderable: CanvasRenderable {
     public var frame: Rect

@@ -48,6 +48,25 @@ public struct InputParser: Sendable {
         guard !bytes.isEmpty else { return [] }
         let text = String(decoding: bytes, as: UTF8.self)
 
+        if text.count > 1, !text.hasPrefix("\u{1B}[<") {
+            var events: [InputEvent] = []
+            var index = text.startIndex
+
+            while index < text.endIndex {
+                let remaining = text[index...]
+                if let arrow = parseArrowPrefix(remaining) {
+                    events.append(.key(arrow.key))
+                    index = text.index(index, offsetBy: arrow.length)
+                } else {
+                    let character = text[index]
+                    events.append(contentsOf: parse(Array(String(character).utf8)))
+                    index = text.index(after: index)
+                }
+            }
+
+            return events
+        }
+
         if let mouse = parseSGRMouse(text) {
             return [.mouse(mouse)]
         }
@@ -70,6 +89,14 @@ public struct InputParser: Sendable {
         case "\u{1B}[C":
             return [.key(.right)]
         case "\u{1B}[D":
+            return [.key(.left)]
+        case "\u{1B}OA":
+            return [.key(.up)]
+        case "\u{1B}OB":
+            return [.key(.down)]
+        case "\u{1B}OC":
+            return [.key(.right)]
+        case "\u{1B}OD":
             return [.key(.left)]
         default:
             if text.count == 1, let character = text.first {
@@ -117,5 +144,43 @@ public struct InputParser: Sendable {
         default:
             return .unknown(code)
         }
+    }
+
+    private func parseArrowPrefix(_ text: Substring) -> (key: Key, length: Int)? {
+        let variants: [(String, Key)] = [
+            ("\u{1B}[A", .up),
+            ("\u{1B}[B", .down),
+            ("\u{1B}[C", .right),
+            ("\u{1B}[D", .left),
+            ("\u{1B}OA", .up),
+            ("\u{1B}OB", .down),
+            ("\u{1B}OC", .right),
+            ("\u{1B}OD", .left)
+        ]
+
+        for (sequence, key) in variants where text.hasPrefix(sequence) {
+            return (key, sequence.count)
+        }
+
+        guard text.hasPrefix("\u{1B}[") else { return nil }
+        var length = 2
+        var scan = text.index(text.startIndex, offsetBy: 2)
+        while scan < text.endIndex {
+            let character = text[scan]
+            length += 1
+            switch character {
+            case "A":
+                return (.up, length)
+            case "B":
+                return (.down, length)
+            case "C":
+                return (.right, length)
+            case "D":
+                return (.left, length)
+            default:
+                scan = text.index(after: scan)
+            }
+        }
+        return nil
     }
 }

@@ -240,6 +240,8 @@ public enum MenuCommand: Equatable, Sendable {
 public struct MainViewContainer: Equatable, Sendable {
     public var menuBar: MenuBar
     public var button: Button
+    public var textInput: TextInput
+    public var checkbox: Checkbox
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -248,12 +250,16 @@ public struct MainViewContainer: Equatable, Sendable {
     public init(
         menuBar: MenuBar,
         button: Button = Button("Quit", frame: Rect(x: 2, y: 6, width: 12, height: 1)),
+        textInput: TextInput = TextInput(text: "Swift", placeholder: "Type here", frame: Rect(x: 18, y: 6, width: 24, height: 1)),
+        checkbox: Checkbox = Checkbox("Enable feature", frame: Rect(x: 46, y: 6, width: 20, height: 1), isChecked: true),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
     ) {
         self.menuBar = menuBar
         self.button = button
+        self.textInput = textInput
+        self.checkbox = checkbox
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -262,13 +268,25 @@ public struct MainViewContainer: Equatable, Sendable {
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
         if event == .key(.tab), !menuBar.isOpen {
-            focusedControl = focusedControl == .menuBar ? .button : .menuBar
+            focusedControl = focusedControl.next
             return .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
             focusedControl = .button
             return button.handle(event) == .activated("Quit") ? .quit : .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, textInput.frame.contains(mouse.location) {
+            focusedControl = .textInput
+            _ = textInput.handle(event)
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, checkbox.frame.contains(mouse.location) {
+            focusedControl = .checkbox
+            _ = checkbox.handle(event)
+            return .none
         }
 
         switch focusedControl {
@@ -288,6 +306,14 @@ public struct MainViewContainer: Equatable, Sendable {
                 }
                 return .none
             }
+        case .textInput:
+            textInput.isFocused = true
+            _ = textInput.handle(event)
+            return .none
+        case .checkbox:
+            checkbox.isFocused = true
+            _ = checkbox.handle(event)
+            return .none
         }
     }
 
@@ -321,9 +347,27 @@ public struct MainViewContainer: Equatable, Sendable {
         )
         vertical.render(in: &canvas)
 
+        let horizontal = Horizontal(
+            frame: Rect(x: 36, y: 14, width: 36, height: 3),
+            spacing: 2,
+            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            children: [
+                AnyCanvasRenderable(Label("Horizontal", frame: Rect(x: 0, y: 0, width: 12, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black))),
+                AnyCanvasRenderable(Button("One", frame: Rect(x: 0, y: 0, width: 8, height: 1))),
+                AnyCanvasRenderable(Button("Two", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true))
+            ]
+        )
+        horizontal.render(in: &canvas)
+
         var button = button
         button.isFocused = focusedControl == .button
         button.render(in: &canvas)
+        var textInput = textInput
+        textInput.isFocused = focusedControl == .textInput
+        textInput.render(in: &canvas)
+        var checkbox = checkbox
+        checkbox.isFocused = focusedControl == .checkbox
+        checkbox.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
@@ -364,4 +408,19 @@ public struct MainViewContainer: Equatable, Sendable {
 public enum MainViewFocus: Equatable, Sendable {
     case menuBar
     case button
+    case textInput
+    case checkbox
+
+    var next: MainViewFocus {
+        switch self {
+        case .menuBar:
+            return .button
+        case .button:
+            return .textInput
+        case .textInput:
+            return .checkbox
+        case .checkbox:
+            return .menuBar
+        }
+    }
 }
