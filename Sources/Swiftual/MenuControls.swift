@@ -103,7 +103,7 @@ public struct MenuBar: Equatable, Sendable {
         var column = 0
         for index in menus.indices {
             let title = " \(menus[index].title) "
-            let style = index == selectedMenuIndex ? selectedBarStyle : barStyle
+            let style = openedMenuIndex == index ? selectedBarStyle : barStyle
             canvas.drawText(title, at: Point(x: column, y: 0), style: style)
             column += title.count
         }
@@ -239,27 +239,660 @@ public enum MenuCommand: Equatable, Sendable {
 
 public struct MainViewContainer: Equatable, Sendable {
     public var menuBar: MenuBar
+    public var button: Button
+    public var textInput: TextInput
+    public var checkbox: Checkbox
+    public var toggleSwitch: Switch
+    public var select: Select
+    public var scrollView: ScrollView
+    public var modal: Modal
+    public var progressBar: ProgressBar
+    public var progressAnimationStartedAt: Date?
+    public var progressAnimationDuration: TimeInterval
+    public var richLog: RichLog
+    public var dataTable: DataTable
+    public var tree: Tree
+    public var commandPalette: CommandPalette
+    public var workerManager: WorkerManager
+    public var demoButtons: [Button]
+    public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
+    public var focusedControl: MainViewFocus
 
     public init(
         menuBar: MenuBar,
+        button: Button = Button("Quit", frame: Rect(x: 2, y: 6, width: 12, height: 1)),
+        textInput: TextInput = TextInput(text: "Swift", placeholder: "Type here", frame: Rect(x: 18, y: 6, width: 24, height: 1)),
+        checkbox: Checkbox = Checkbox("Enable feature", frame: Rect(x: 46, y: 6, width: 20, height: 1), isChecked: true),
+        toggleSwitch: Switch = Switch("Power", frame: Rect(x: 68, y: 6, width: 14, height: 1), isOn: true),
+        select: Select = Select(frame: Rect(x: 84, y: 6, width: 14, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta"), SelectOption("Gamma")]),
+        scrollView: ScrollView = ScrollView(frame: Rect(x: 74, y: 14, width: 24, height: 5), content: (1...12).map { "Scroll row \($0)" }),
+        modal: Modal = Modal(frame: Rect(x: 24, y: 8, width: 36, height: 8), title: "Swiftual", message: "Modal screen example", buttons: [ModalButton("OK"), ModalButton("Cancel")]),
+        progressBar: ProgressBar = ProgressBar(frame: Rect(x: 52, y: 18, width: 20, height: 1), value: 0.65, label: "Load"),
+        progressAnimationStartedAt: Date? = nil,
+        progressAnimationDuration: TimeInterval = 5,
+        richLog: RichLog = RichLog(
+            frame: Rect(x: 2, y: 20, width: 96, height: 4),
+            entries: [
+                RichLogEntry("Ready: interact with controls to populate the log.", style: TerminalStyle(foreground: .brightWhite, background: .black))
+            ]
+        ),
+        dataTable: DataTable = DataTable(
+            frame: Rect(x: 74, y: 8, width: 24, height: 5),
+            columns: [
+                DataTableColumn("Feature", width: 12),
+                DataTableColumn("State", width: 10)
+            ],
+            rows: [
+                ["Menu", "Ready"],
+                ["Button", "Ready"],
+                ["Modal", "Ready"],
+                ["Log", "Ready"],
+                ["Table", "New"]
+            ]
+        ),
+        tree: Tree = Tree(
+            frame: Rect(x: 100, y: 8, width: 30, height: 7),
+            roots: [
+                TreeNode("Swiftual", children: [
+                    TreeNode("Controls", children: [
+                        TreeNode("Button"),
+                        TreeNode("DataTable"),
+                        TreeNode("Tree")
+                    ]),
+                    TreeNode("Runtime", isExpanded: false, children: [
+                        TreeNode("Terminal"),
+                        TreeNode("Events")
+                    ])
+                ])
+            ]
+        ),
+        commandPalette: CommandPalette = CommandPalette(
+            frame: Rect(x: 38, y: 5, width: 44, height: 10),
+            items: [
+                CommandPaletteItem("Quit", detail: "Exit the demo"),
+                CommandPaletteItem("Show modal", detail: "Open the modal overlay"),
+                CommandPaletteItem("Start worker", detail: "Run async progress"),
+                CommandPaletteItem("Cancel worker", detail: "Stop async progress"),
+                CommandPaletteItem("Focus tree", detail: "Move focus to tree")
+            ]
+        ),
+        workerManager: WorkerManager = WorkerManager(),
+        demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
+        demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
     ) {
         self.menuBar = menuBar
+        self.button = button
+        self.textInput = textInput
+        self.checkbox = checkbox
+        self.toggleSwitch = toggleSwitch
+        self.select = select
+        self.scrollView = scrollView
+        self.modal = modal
+        self.progressBar = progressBar
+        self.progressAnimationStartedAt = progressAnimationStartedAt
+        self.progressAnimationDuration = progressAnimationDuration
+        self.richLog = richLog
+        self.dataTable = dataTable
+        self.tree = tree
+        self.commandPalette = commandPalette
+        self.workerManager = workerManager
+        self.demoButtons = demoButtons
+        self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
+        self.focusedControl = .menuBar
     }
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
-        menuBar.handle(event)
+        if commandPalette.isPresented {
+            return handleCommandPalette(commandPalette.handle(event))
+        }
+
+        if modal.isPresented {
+            logModalCommand(modal.handle(event))
+            return .none
+        }
+
+        if event == .key(.controlP) {
+            presentCommandPalette()
+            return .none
+        }
+
+        if event == .key(.tab), !menuBar.isOpen {
+            focusedControl = focusedControl.next
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, mouse.location.y == 0 || menuBar.isOpen {
+            focusedControl = .menuBar
+            let command = menuBar.handle(event)
+            logMenuCommand(command)
+            return command
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
+            focusedControl = .button
+            let command = button.handle(event)
+            logButtonCommand(command)
+            return command == .activated("Quit") ? .quit : .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, textInput.frame.contains(mouse.location) {
+            focusedControl = .textInput
+            logTextInputCommand(textInput.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, checkbox.frame.contains(mouse.location) {
+            focusedControl = .checkbox
+            logCheckboxCommand(checkbox.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, toggleSwitch.frame.contains(mouse.location) {
+            focusedControl = .switch
+            logSwitchCommand(toggleSwitch.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left {
+            if select.frame.contains(mouse.location) || select.isOpen {
+                focusedControl = .select
+                logSelectCommand(select.handle(event))
+                return .none
+            }
+        }
+
+        if case .mouse(let mouse) = event, scrollView.frame.contains(mouse.location) {
+            focusedControl = .scrollView
+            logScrollViewCommand(scrollView.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, dataTable.frame.contains(mouse.location) {
+            focusedControl = .dataTable
+            logDataTableCommand(dataTable.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, tree.frame.contains(mouse.location) {
+            focusedControl = .tree
+            logTreeCommand(tree.handle(event))
+            return .none
+        }
+
+        let commandButton = Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, commandButton.frame.contains(mouse.location) {
+            focusedControl = .commandPaletteButton
+            presentCommandPalette()
+            return .none
+        }
+
+        let workerButton = Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, workerButton.frame.contains(mouse.location) {
+            focusedControl = .workerButton
+            toggleWorker()
+            return .none
+        }
+
+        let modalButton = Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, modalButton.frame.contains(mouse.location) {
+            focusedControl = .modalButton
+            modal.present()
+            richLog.append("Modal opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+            return .none
+        }
+
+        let progressButton = Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, progressButton.frame.contains(mouse.location) {
+            focusedControl = .progressButton
+            startProgressAnimation()
+            return .none
+        }
+
+        switch focusedControl {
+        case .menuBar:
+            let command = menuBar.handle(event)
+            logMenuCommand(command)
+            return command
+        case .button:
+            button.isFocused = true
+            switch button.handle(event) {
+            case .activated("Quit"):
+                richLog.append("Button activated: Quit.", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+                return .quit
+            case .activated(let title):
+                richLog.append("Button activated: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+                return .none
+            case .none:
+                if case .mouse = event {
+                    focusedControl = .menuBar
+                    let command = menuBar.handle(event)
+                    logMenuCommand(command)
+                    return command
+                }
+                return .none
+            }
+        case .textInput:
+            textInput.isFocused = true
+            logTextInputCommand(textInput.handle(event))
+            return .none
+        case .checkbox:
+            checkbox.isFocused = true
+            logCheckboxCommand(checkbox.handle(event))
+            return .none
+        case .switch:
+            toggleSwitch.isFocused = true
+            logSwitchCommand(toggleSwitch.handle(event))
+            return .none
+        case .select:
+            select.isFocused = true
+            logSelectCommand(select.handle(event))
+            return .none
+        case .scrollView:
+            scrollView.isFocused = true
+            logScrollViewCommand(scrollView.handle(event))
+            return .none
+        case .modalButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                modal.present()
+                richLog.append("Modal opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+            }
+            return .none
+        case .progressButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                startProgressAnimation()
+            }
+            return .none
+        case .dataTable:
+            dataTable.isFocused = true
+            logDataTableCommand(dataTable.handle(event))
+            return .none
+        case .tree:
+            tree.isFocused = true
+            logTreeCommand(tree.handle(event))
+            return .none
+        case .commandPaletteButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                presentCommandPalette()
+            }
+            return .none
+        case .workerButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                toggleWorker()
+            }
+            return .none
+        }
+    }
+
+    public mutating func startProgressAnimation(now: Date = Date()) {
+        progressAnimationStartedAt = now
+        progressBar.value = 0
+        richLog.append("Progress animation started: 0% to 100%.", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+    }
+
+    public mutating func updateProgressAnimation(now: Date = Date()) {
+        guard let progressAnimationStartedAt else { return }
+        let duration = max(0.001, progressAnimationDuration)
+        let elapsed = now.timeIntervalSince(progressAnimationStartedAt)
+        let fraction = min(1, max(0, elapsed / duration))
+        progressBar.value = fraction
+        if fraction >= 1 {
+            self.progressAnimationStartedAt = nil
+            richLog.append("Progress animation finished: 100%.", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        }
+    }
+
+    public mutating func updateWorkerEvents() {
+        for event in workerManager.drainEvents() {
+            let style: TerminalStyle
+            switch event.state {
+            case .running:
+                style = TerminalStyle(foreground: .brightWhite, background: .black)
+            case .completed:
+                style = TerminalStyle(foreground: .green, background: .black, bold: true)
+            case .cancelled:
+                style = TerminalStyle(foreground: .yellow, background: .black, bold: true)
+            case .failed:
+                style = TerminalStyle(foreground: .red, background: .black, bold: true)
+            case .idle:
+                style = TerminalStyle(foreground: .white, background: .black)
+            }
+            richLog.append(event.message, style: style)
+        }
+    }
+
+    private var workerButtonTitle: String {
+        workerManager.state == .running ? "Cancel job" : "Run worker"
+    }
+
+    private mutating func toggleWorker() {
+        if workerManager.state == .running {
+            workerManager.cancel()
+        } else {
+            workerManager.startDemoTask()
+        }
+        updateWorkerEvents()
+    }
+
+    private mutating func presentCommandPalette() {
+        commandPalette.present()
+        focusedControl = .commandPaletteButton
+        richLog.append("Command palette opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+    }
+
+    private mutating func handleCommandPalette(_ command: CommandPaletteCommand) -> MenuCommand {
+        logCommandPaletteCommand(command)
+        guard case .selected(let title) = command else { return .none }
+        switch title {
+        case "Quit":
+            return .quit
+        case "Show modal":
+            modal.present()
+        case "Start worker":
+            workerManager.startDemoTask()
+            updateWorkerEvents()
+        case "Cancel worker":
+            workerManager.cancel()
+            updateWorkerEvents()
+        case "Focus tree":
+            focusedControl = .tree
+        default:
+            break
+        }
+        return .none
+    }
+
+    private mutating func logMenuCommand(_ command: MenuCommand) {
+        switch command {
+        case .none:
+            if menuBar.isOpen, let index = menuBar.openedMenuIndex, menuBar.menus.indices.contains(index) {
+                richLog.append("Menu opened: \(menuBar.menus[index].title).", style: TerminalStyle(foreground: .cyan, background: .black))
+            }
+        case .activated(let title):
+            richLog.append("Menu selected: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        case .quit:
+            richLog.append("Menu selected: Quit.", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        }
+    }
+
+    private mutating func logButtonCommand(_ command: ButtonCommand) {
+        guard case .activated(let title) = command else { return }
+        richLog.append("Button activated: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+    }
+
+    private mutating func logTextInputCommand(_ command: TextInputCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Text input focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .changed(let text):
+            richLog.append("Text input changed: \(text).", style: TerminalStyle(foreground: .brightWhite, background: .black))
+        case .cursorMoved(let index):
+            richLog.append("Text input cursor moved: \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .submitted(let text):
+            richLog.append("Text input submitted: \(text).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logCheckboxCommand(_ command: CheckboxCommand) {
+        guard case .changed(let isChecked) = command else { return }
+        richLog.append("Checkbox changed: \(isChecked ? "checked" : "unchecked").", style: TerminalStyle(foreground: .green, background: .black))
+    }
+
+    private mutating func logSwitchCommand(_ command: SwitchCommand) {
+        guard case .changed(let isOn) = command else { return }
+        richLog.append("Switch changed: \(isOn ? "on" : "off").", style: TerminalStyle(foreground: .green, background: .black))
+    }
+
+    private mutating func logSelectCommand(_ command: SelectCommand) {
+        switch command {
+        case .opened:
+            richLog.append("Select opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .closed:
+            richLog.append("Select closed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Select highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .changed(_, let title):
+            richLog.append("Select picked: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logScrollViewCommand(_ command: ScrollViewCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Scroll view focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .scrolled(let offset):
+            richLog.append("Scroll view moved to offset \(offset).", style: TerminalStyle(foreground: .white, background: .black))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logModalCommand(_ command: ModalCommand) {
+        switch command {
+        case .dismissed:
+            richLog.append("Modal dismissed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Modal highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .selected(_, let title):
+            richLog.append("Modal picked option: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logDataTableCommand(_ command: DataTableCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Data table focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .selected(let index, let row):
+            richLog.append("Data table selected row \(index): \(row.joined(separator: " / ")).", style: TerminalStyle(foreground: .white, background: .black))
+        case .activated(let index, let row):
+            richLog.append("Data table activated row \(index): \(row.joined(separator: " / ")).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logTreeCommand(_ command: TreeCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Tree focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .selected(let row):
+            richLog.append("Tree selected: \(row.title).", style: TerminalStyle(foreground: .white, background: .black))
+        case .expanded(let row):
+            richLog.append("Tree expanded: \(row.title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .collapsed(let row):
+            richLog.append("Tree collapsed: \(row.title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        case .activated(let row):
+            richLog.append("Tree activated: \(row.title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .scrolled(let offset):
+            richLog.append("Tree moved to offset \(offset).", style: TerminalStyle(foreground: .white, background: .black))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logCommandPaletteCommand(_ command: CommandPaletteCommand) {
+        switch command {
+        case .dismissed:
+            richLog.append("Command palette dismissed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Command palette highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .queryChanged(let query):
+            richLog.append("Command palette query: \(query).", style: TerminalStyle(foreground: .white, background: .black))
+        case .selected(let title):
+            richLog.append("Command palette selected: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
     }
 
     public func render(size: TerminalSize) -> Canvas {
         var canvas = Canvas(size: size, fill: Cell(" ", style: backgroundStyle))
         canvas.fill(rect: Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1)), style: backgroundStyle)
-        canvas.drawText("Swiftual demo", at: Point(x: 2, y: 2), style: backgroundStyle)
-        canvas.drawText("Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.", at: Point(x: 2, y: 4), style: backgroundStyle)
+        Label("Swiftual demo", frame: Rect(x: 2, y: 2, width: max(0, size.columns - 4), height: 1), style: backgroundStyle).render(in: &canvas)
+        Label(
+            "Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.",
+            frame: Rect(x: 2, y: 4, width: max(0, size.columns - 4), height: 1),
+            style: backgroundStyle
+        ).render(in: &canvas)
+
+        for label in demoLabels {
+            label.render(in: &canvas)
+        }
+
+        for button in demoButtons {
+            button.render(in: &canvas)
+        }
+
+        let vertical = Vertical(
+            frame: Rect(x: 2, y: 14, width: 30, height: 5),
+            spacing: 1,
+            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            children: [
+                AnyCanvasRenderable(Label("Vertical stack", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black), alignment: .center)),
+                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .cyan, background: .black))),
+                AnyCanvasRenderable(Button("Child button", frame: Rect(x: 0, y: 0, width: 16, height: 1)))
+            ]
+        )
+        vertical.render(in: &canvas)
+
+        let horizontal = Horizontal(
+            frame: Rect(x: 36, y: 14, width: 36, height: 3),
+            spacing: 2,
+            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            children: [
+                AnyCanvasRenderable(Label("Horizontal", frame: Rect(x: 0, y: 0, width: 12, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black))),
+                AnyCanvasRenderable(Button("One", frame: Rect(x: 0, y: 0, width: 8, height: 1))),
+                AnyCanvasRenderable(Button("Two", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true))
+            ]
+        )
+        horizontal.render(in: &canvas)
+
+        Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1), isFocused: focusedControl == .modalButton).render(in: &canvas)
+        progressBar.render(in: &canvas)
+        Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1), isFocused: focusedControl == .progressButton).render(in: &canvas)
+
+        var button = button
+        button.isFocused = focusedControl == .button
+        button.render(in: &canvas)
+        var textInput = textInput
+        textInput.isFocused = focusedControl == .textInput
+        textInput.render(in: &canvas)
+        var checkbox = checkbox
+        checkbox.isFocused = focusedControl == .checkbox
+        checkbox.render(in: &canvas)
+        var toggleSwitch = toggleSwitch
+        toggleSwitch.isFocused = focusedControl == .switch
+        toggleSwitch.render(in: &canvas)
+        var select = select
+        select.isFocused = focusedControl == .select
+        select.render(in: &canvas)
+        var scrollView = scrollView
+        scrollView.isFocused = focusedControl == .scrollView
+        scrollView.render(in: &canvas)
+        var dataTable = dataTable
+        dataTable.isFocused = focusedControl == .dataTable
+        dataTable.render(in: &canvas)
+        var tree = tree
+        tree.isFocused = focusedControl == .tree
+        tree.render(in: &canvas)
+        Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1), isFocused: focusedControl == .commandPaletteButton).render(in: &canvas)
+        Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1), isFocused: focusedControl == .workerButton).render(in: &canvas)
+        ProgressBar(
+            frame: Rect(x: 100, y: 20, width: 30, height: 1),
+            value: workerManager.state == .idle ? 0 : workerManager.progress,
+            label: "Worker"
+        ).render(in: &canvas)
+        richLog.render(in: &canvas)
+        modal.render(in: &canvas)
+        commandPalette.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
+    }
+
+    public static func defaultDemoLabels() -> [Label] {
+        [
+            Label(
+                "Left label",
+                frame: Rect(x: 2, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .brightWhite, background: .brightBlack),
+                alignment: .left
+            ),
+            Label(
+                "Centered",
+                frame: Rect(x: 22, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .black, background: .cyan, bold: true),
+                alignment: .center
+            ),
+            Label(
+                "Right",
+                frame: Rect(x: 42, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .yellow, background: .blue),
+                alignment: .right
+            )
+        ]
+    }
+
+    public static func defaultDemoButtons() -> [Button] {
+        [
+            Button("Normal", frame: Rect(x: 2, y: 11, width: 14, height: 1)),
+            Button("Focused", frame: Rect(x: 18, y: 11, width: 14, height: 1), isFocused: true),
+            Button("Disabled", frame: Rect(x: 34, y: 11, width: 14, height: 1), isEnabled: false)
+        ]
+    }
+}
+
+public enum MainViewFocus: Equatable, Sendable {
+    case menuBar
+    case button
+    case textInput
+    case checkbox
+    case `switch`
+    case select
+    case scrollView
+    case modalButton
+    case progressButton
+    case dataTable
+    case tree
+    case commandPaletteButton
+    case workerButton
+
+    var next: MainViewFocus {
+        switch self {
+        case .menuBar:
+            return .button
+        case .button:
+            return .textInput
+        case .textInput:
+            return .checkbox
+        case .checkbox:
+            return .switch
+        case .switch:
+            return .select
+        case .select:
+            return .scrollView
+        case .scrollView:
+            return .modalButton
+        case .modalButton:
+            return .progressButton
+        case .progressButton:
+            return .dataTable
+        case .dataTable:
+            return .tree
+        case .tree:
+            return .commandPaletteButton
+        case .commandPaletteButton:
+            return .workerButton
+        case .workerButton:
+            return .menuBar
+        }
     }
 }

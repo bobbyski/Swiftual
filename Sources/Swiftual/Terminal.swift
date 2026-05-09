@@ -63,7 +63,17 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         if count < 0 {
             throw TerminalError.readFailed(errno)
         }
-        return Array(buffer.prefix(count))
+
+        var bytes = Array(buffer.prefix(count))
+        while bytes.count < maxBytes, hasPendingInput() {
+            var next: UInt8 = 0
+            let nextCount = Darwin.read(input, &next, 1)
+            if nextCount <= 0 {
+                break
+            }
+            bytes.append(next)
+        }
+        return bytes
     }
 
     public func writeOutput(_ output: String) throws {
@@ -99,8 +109,8 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         current.c_iflag &= ~(UInt(IXON | ICRNL | BRKINT | INPCK | ISTRIP))
         current.c_oflag &= ~(UInt(OPOST))
         current.c_cflag |= UInt(CS8)
-        current.c_cc.16 = 1
-        current.c_cc.17 = 0
+        current.c_cc.16 = 0
+        current.c_cc.17 = 1
 
         guard tcsetattr(input, TCSAFLUSH, &current) == 0 else {
             throw TerminalError.rawModeFailed(errno)
@@ -111,6 +121,35 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         guard var originalTermios else { return }
         tcsetattr(input, TCSAFLUSH, &originalTermios)
         self.originalTermios = nil
+    }
+
+    private func hasPendingInput() -> Bool {
+        var readSet = fd_set()
+        fdZero(&readSet)
+        fdSet(input, set: &readSet)
+        var timeout = timeval(tv_sec: 0, tv_usec: 1_000)
+        return select(input + 1, &readSet, nil, nil, &timeout) > 0
+    }
+}
+
+private func fdZero(_ set: inout fd_set) {
+    withUnsafeMutablePointer(to: &set) { pointer in
+        pointer.withMemoryRebound(to: Int32.self, capacity: MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) { words in
+            for index in 0..<(MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) {
+                words[index] = 0
+            }
+        }
+    }
+}
+
+private func fdSet(_ fd: Int32, set: inout fd_set) {
+    let intBits = Int32(MemoryLayout<Int32>.size * 8)
+    let index = Int(fd / intBits)
+    let bit = fd % intBits
+    withUnsafeMutablePointer(to: &set) { pointer in
+        pointer.withMemoryRebound(to: Int32.self, capacity: MemoryLayout<fd_set>.size / MemoryLayout<Int32>.size) { words in
+            words[index] |= 1 << bit
+        }
     }
 }
 
@@ -128,18 +167,20 @@ public struct ANSITerminalBackend: TerminalBackend {
     }
 
     public func enterApplicationMode(device: TerminalDevice) throws {
-        try device.writeOutput("\u{001B}[?1049h\u{001B}[?25l\u{001B}[?1000h\u{001B}[?1006h\u{001B}[2J\u{001B}[H")
+        try device.writeOutput("\u{001B}[?1049h\u{001B}[?25l\u{001B}[?1000h\u{001B}[?1002h\u{001B}[?1006h\u{001B}[2J\u{001B}[H")
     }
 
     public func exitApplicationMode(device: TerminalDevice) throws {
-        try device.writeOutput("\u{001B}[?1006l\u{001B}[?1000l\u{001B}[?25h\u{001B}[0m\u{001B}[?1049l")
+        try device.writeOutput("\u{001B}[?1006l\u{001B}[?1002l\u{001B}[?1000l\u{001B}[?25h\u{001B}[0m\u{001B}[?1049l")
     }
 
     public func render(_ canvas: Canvas, device: TerminalDevice) throws {
-        var output = "\u{001B}[H"
+        var output = "\u{001B}[?7l\u{001B}[H"
         var currentStyle = TerminalStyle.plain
 
-        for row in canvas.rows() {
+        let rows = canvas.rows()
+        for rowIndex in rows.indices {
+            let row = rows[rowIndex]
             for cell in row {
                 if cell.style != currentStyle {
                     output += "\u{001B}[0m"
@@ -150,8 +191,11 @@ public struct ANSITerminalBackend: TerminalBackend {
             }
             output += "\u{001B}[0m"
             currentStyle = .plain
-            output += "\r\n"
+            if rowIndex < rows.count - 1 {
+                output += "\r\n"
+            }
         }
+        output += "\u{001B}[?7h"
 
         try device.writeOutput(output)
     }
