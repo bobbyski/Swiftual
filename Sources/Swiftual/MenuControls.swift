@@ -239,27 +239,129 @@ public enum MenuCommand: Equatable, Sendable {
 
 public struct MainViewContainer: Equatable, Sendable {
     public var menuBar: MenuBar
+    public var button: Button
+    public var demoButtons: [Button]
+    public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
+    public var focusedControl: MainViewFocus
 
     public init(
         menuBar: MenuBar,
+        button: Button = Button("Quit", frame: Rect(x: 2, y: 6, width: 12, height: 1)),
+        demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
+        demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
     ) {
         self.menuBar = menuBar
+        self.button = button
+        self.demoButtons = demoButtons
+        self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
+        self.focusedControl = .menuBar
     }
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
-        menuBar.handle(event)
+        if event == .key(.tab), !menuBar.isOpen {
+            focusedControl = focusedControl == .menuBar ? .button : .menuBar
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
+            focusedControl = .button
+            return button.handle(event) == .activated("Quit") ? .quit : .none
+        }
+
+        switch focusedControl {
+        case .menuBar:
+            return menuBar.handle(event)
+        case .button:
+            button.isFocused = true
+            switch button.handle(event) {
+            case .activated("Quit"):
+                return .quit
+            case .activated:
+                return .none
+            case .none:
+                if case .mouse = event {
+                    focusedControl = .menuBar
+                    return menuBar.handle(event)
+                }
+                return .none
+            }
+        }
     }
 
     public func render(size: TerminalSize) -> Canvas {
         var canvas = Canvas(size: size, fill: Cell(" ", style: backgroundStyle))
         canvas.fill(rect: Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1)), style: backgroundStyle)
-        canvas.drawText("Swiftual demo", at: Point(x: 2, y: 2), style: backgroundStyle)
-        canvas.drawText("Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.", at: Point(x: 2, y: 4), style: backgroundStyle)
+        Label("Swiftual demo", frame: Rect(x: 2, y: 2, width: max(0, size.columns - 4), height: 1), style: backgroundStyle).render(in: &canvas)
+        Label(
+            "Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.",
+            frame: Rect(x: 2, y: 4, width: max(0, size.columns - 4), height: 1),
+            style: backgroundStyle
+        ).render(in: &canvas)
+
+        for label in demoLabels {
+            label.render(in: &canvas)
+        }
+
+        for button in demoButtons {
+            button.render(in: &canvas)
+        }
+
+        let vertical = Vertical(
+            frame: Rect(x: 2, y: 14, width: 30, height: 5),
+            spacing: 1,
+            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            children: [
+                AnyCanvasRenderable(Label("Vertical stack", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black), alignment: .center)),
+                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .cyan, background: .black))),
+                AnyCanvasRenderable(Button("Child button", frame: Rect(x: 0, y: 0, width: 16, height: 1)))
+            ]
+        )
+        vertical.render(in: &canvas)
+
+        var button = button
+        button.isFocused = focusedControl == .button
+        button.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
     }
+
+    public static func defaultDemoLabels() -> [Label] {
+        [
+            Label(
+                "Left label",
+                frame: Rect(x: 2, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .brightWhite, background: .brightBlack),
+                alignment: .left
+            ),
+            Label(
+                "Centered",
+                frame: Rect(x: 22, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .black, background: .cyan, bold: true),
+                alignment: .center
+            ),
+            Label(
+                "Right",
+                frame: Rect(x: 42, y: 9, width: 18, height: 1),
+                style: TerminalStyle(foreground: .yellow, background: .blue),
+                alignment: .right
+            )
+        ]
+    }
+
+    public static func defaultDemoButtons() -> [Button] {
+        [
+            Button("Normal", frame: Rect(x: 2, y: 11, width: 14, height: 1)),
+            Button("Focused", frame: Rect(x: 18, y: 11, width: 14, height: 1), isFocused: true),
+            Button("Disabled", frame: Rect(x: 34, y: 11, width: 14, height: 1), isEnabled: false)
+        ]
+    }
+}
+
+public enum MainViewFocus: Equatable, Sendable {
+    case menuBar
+    case button
 }

@@ -31,8 +31,14 @@ public struct Canvas: Equatable, Sendable {
     }
 
     public mutating func fill(rect: Rect, style: TerminalStyle, character: Character = " ") {
-        for row in max(0, rect.y)..<min(size.rows, rect.y + rect.height) {
-            for column in max(0, rect.x)..<min(size.columns, rect.x + rect.width) {
+        let startRow = max(0, rect.y)
+        let endRow = min(size.rows, rect.y + rect.height)
+        let startColumn = max(0, rect.x)
+        let endColumn = min(size.columns, rect.x + rect.width)
+        guard startRow < endRow, startColumn < endColumn else { return }
+
+        for row in startRow..<endRow {
+            for column in startColumn..<endColumn {
                 self[column, row] = Cell(character, style: style)
             }
         }

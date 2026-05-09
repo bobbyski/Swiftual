@@ -136,7 +136,7 @@ public struct ANSITerminalBackend: TerminalBackend {
     }
 
     public func render(_ canvas: Canvas, device: TerminalDevice) throws {
-        var output = "\u{001B}[H"
+        var output = "\u{001B}[?7l\u{001B}[H"
         var currentStyle = TerminalStyle.plain
 
         let rows = canvas.rows()
@@ -156,6 +156,7 @@ public struct ANSITerminalBackend: TerminalBackend {
                 output += "\r\n"
             }
         }
+        output += "\u{001B}[?7h"
 
         try device.writeOutput(output)
     }
