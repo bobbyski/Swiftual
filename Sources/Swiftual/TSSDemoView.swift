@@ -117,6 +117,8 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         }
         splitView.render(in: &canvas)
         renderPanel(in: &canvas, size: size)
+        let menuBar = baseDemo.menuBar
+        menuBar.render(in: &canvas)
         return canvas
     }
 
@@ -150,6 +152,8 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         let disabledMenuItemStyle = cascade.style(for: TCSSStyleContext(typeName: "MenuItem", pseudoStates: ["disabled"]))
         baseDemo.menuBar.disabledItemStyle = disabledMenuItemStyle.terminalStyle.applied(to: baseDemo.menuBar.disabledItemStyle)
 
+        applyButtonTCSS(cascade)
+
         if logSelection {
             baseDemo.richLog.append("TCSS demo selected: \(selectedStylesheet.fileName).", style: TerminalStyle(foreground: .cyan, background: .black))
             if !stylesheetDiagnostics.isEmpty {
@@ -158,9 +162,71 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         }
     }
 
+    private mutating func applyButtonTCSS(_ cascade: TCSSCascade) {
+        let buttonStyle = cascade.style(for: TCSSStyleContext(typeName: "Button"))
+        let focusedButtonStyle = cascade.style(for: TCSSStyleContext(typeName: "Button", pseudoStates: ["focus"]))
+        let disabledButtonStyle = cascade.style(for: TCSSStyleContext(typeName: "Button", pseudoStates: ["disabled"]))
+
+        apply(
+            buttonStyle: buttonStyle,
+            focusedButtonStyle: focusedButtonStyle,
+            disabledButtonStyle: disabledButtonStyle,
+            to: &baseDemo.button
+        )
+
+        for index in baseDemo.demoButtons.indices {
+            apply(
+                buttonStyle: buttonStyle,
+                focusedButtonStyle: focusedButtonStyle,
+                disabledButtonStyle: disabledButtonStyle,
+                to: &baseDemo.demoButtons[index]
+            )
+        }
+    }
+
+    private func apply(
+        buttonStyle: TCSSStyle,
+        focusedButtonStyle: TCSSStyle,
+        disabledButtonStyle: TCSSStyle,
+        to button: inout Button
+    ) {
+        button.style = buttonStyle.terminalStyle.applied(to: button.style)
+        button.focusedStyle = focusedButtonStyle.terminalStyle.applied(to: button.focusedStyle)
+        button.disabledStyle = disabledButtonStyle.terminalStyle.applied(to: button.disabledStyle)
+        button.frame = apply(buttonStyle.layout, to: button.frame)
+    }
+
+    private func apply(_ layout: TCSSLayoutStyle, to frame: Rect) -> Rect {
+        var next = frame
+        if let width = layout.width {
+            next.width = max(1, width)
+        }
+        if let height = layout.height {
+            next.height = max(1, height)
+        }
+        if let minWidth = layout.minWidth {
+            next.width = max(next.width, minWidth)
+        }
+        if let maxWidth = layout.maxWidth {
+            next.width = min(next.width, max(1, maxWidth))
+        }
+        if let minHeight = layout.minHeight {
+            next.height = max(next.height, minHeight)
+        }
+        if let maxHeight = layout.maxHeight {
+            next.height = min(next.height, max(1, maxHeight))
+        }
+        return next
+    }
+
     private mutating func resetDemoStyles() {
         baseDemo.backgroundStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
         baseDemo.menuBar.resetStyles()
+        baseDemo.button.frame = Rect(x: 2, y: 6, width: 12, height: 1)
+        baseDemo.button.style = Button.defaultStyle
+        baseDemo.button.focusedStyle = Button.defaultFocusedStyle
+        baseDemo.button.disabledStyle = Button.defaultDisabledStyle
+        baseDemo.demoButtons = MainViewContainer.defaultDemoButtons()
     }
 
     private mutating func updatePanelControls(for size: TerminalSize) {
@@ -252,6 +318,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 Button {
                     background: bright-white;
                     color: black;
+                    width: 18;
                     height: 1;
                 }
 
@@ -384,10 +451,21 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 }
 
                 MenuBar,
-                Button:focus {
+                Button {
                     background: rgb(156, 39, 176);
                     color: rgb(255, 235, 59);
                     text-style: bold;
+                }
+
+                Button:focus {
+                    background: rgb(0, 188, 212);
+                    color: rgb(74, 20, 140);
+                    text-style: bold;
+                }
+
+                Button:disabled {
+                    background: rgb(96, 125, 139);
+                    color: rgb(255, 193, 7);
                 }
 
                 Menu {

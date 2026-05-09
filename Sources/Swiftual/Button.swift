@@ -5,6 +5,9 @@ public struct Button: Equatable, Sendable {
     public var frame: Rect
     public var isFocused: Bool
     public var isEnabled: Bool
+    public var style: TerminalStyle
+    public var focusedStyle: TerminalStyle
+    public var disabledStyle: TerminalStyle
     public var action: @Sendable () -> Void
 
     public init(
@@ -12,20 +15,33 @@ public struct Button: Equatable, Sendable {
         frame: Rect,
         isFocused: Bool = false,
         isEnabled: Bool = true,
+        style: TerminalStyle = Button.defaultStyle,
+        focusedStyle: TerminalStyle = Button.defaultFocusedStyle,
+        disabledStyle: TerminalStyle = Button.defaultDisabledStyle,
         action: @escaping @Sendable () -> Void = {}
     ) {
         self.title = title
         self.frame = frame
         self.isFocused = isFocused
         self.isEnabled = isEnabled
+        self.style = style
+        self.focusedStyle = focusedStyle
+        self.disabledStyle = disabledStyle
         self.action = action
     }
+
+    public static let defaultStyle = TerminalStyle(foreground: .black, background: .brightWhite)
+    public static let defaultFocusedStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+    public static let defaultDisabledStyle = TerminalStyle(foreground: .white, background: .brightBlack)
 
     public static func == (lhs: Button, rhs: Button) -> Bool {
         lhs.title == rhs.title &&
             lhs.frame == rhs.frame &&
             lhs.isFocused == rhs.isFocused &&
-            lhs.isEnabled == rhs.isEnabled
+            lhs.isEnabled == rhs.isEnabled &&
+            lhs.style == rhs.style &&
+            lhs.focusedStyle == rhs.focusedStyle &&
+            lhs.disabledStyle == rhs.disabledStyle
     }
 
     public mutating func handle(_ event: InputEvent) -> ButtonCommand {
@@ -50,11 +66,11 @@ public struct Button: Equatable, Sendable {
     public func render(in canvas: inout Canvas) {
         let style: TerminalStyle
         if !isEnabled {
-            style = TerminalStyle(foreground: .white, background: .brightBlack)
+            style = disabledStyle
         } else if isFocused {
-            style = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+            style = focusedStyle
         } else {
-            style = TerminalStyle(foreground: .black, background: .brightWhite)
+            style = self.style
         }
 
         canvas.fill(rect: frame, style: style)

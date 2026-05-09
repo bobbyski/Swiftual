@@ -149,6 +149,49 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[4, 1].style.bold, true)
     }
 
+    func testButtonUsesPureSwiftStateStyles() {
+        var normal = Button(
+            "Run",
+            frame: Rect(x: 0, y: 0, width: 8, height: 1),
+            style: TerminalStyle(foreground: .yellow, background: .red),
+            focusedStyle: TerminalStyle(foreground: .cyan, background: .green, bold: true),
+            disabledStyle: TerminalStyle(foreground: .white, background: .black)
+        )
+        var canvas = Canvas(size: TerminalSize(columns: 10, rows: 3))
+
+        normal.render(in: &canvas)
+        XCTAssertEqual(canvas[0, 0].style.background, .red)
+        XCTAssertEqual(canvas[0, 0].style.foreground, .yellow)
+
+        normal.isFocused = true
+        normal.render(in: &canvas)
+        XCTAssertEqual(canvas[0, 0].style.background, .green)
+        XCTAssertEqual(canvas[0, 0].style.foreground, .cyan)
+        XCTAssertTrue(canvas[0, 0].style.bold)
+
+        normal.isEnabled = false
+        normal.render(in: &canvas)
+        XCTAssertEqual(canvas[0, 0].style.background, .black)
+        XCTAssertEqual(canvas[0, 0].style.foreground, .white)
+    }
+
+    func testButtonPreservesOneRowRenderingWithCustomStyles() {
+        let button = Button(
+            "Wide",
+            frame: Rect(x: 0, y: 1, width: 12, height: 1),
+            style: TerminalStyle(foreground: .black, background: .cyan)
+        )
+        var canvas = Canvas(size: TerminalSize(columns: 14, rows: 3))
+
+        button.render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 1].style.background, .cyan)
+        XCTAssertEqual(canvas[4, 1].character, "W")
+        XCTAssertEqual(canvas[7, 1].character, "e")
+        XCTAssertEqual(canvas[4, 0].character, " ")
+        XCTAssertEqual(canvas[4, 2].character, " ")
+    }
+
     func testButtonActivatesWithKeyboardWhenFocused() {
         let recorder = ActionRecorder()
         var button = Button("Run", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true) {
@@ -1406,6 +1449,7 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: TerminalSize(columns: 180, rows: 32))
 
+        XCTAssertEqual(canvas[179, 0].style.background, .blue)
         XCTAssertEqual(canvas[129, 2].character, "T")
         XCTAssertEqual(canvas[130, 4].character, "0")
         XCTAssertEqual(canvas[130, 7].character, "1")
@@ -1574,6 +1618,44 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.baseDemo.menuBar.barStyle.background, .blue)
         XCTAssertEqual(view.baseDemo.menuBar.menuStyle.background, .brightBlack)
         XCTAssertEqual(view.baseDemo.menuBar.selectedItemStyle.background, .blue)
+    }
+
+    func testTSSDemoAppliesButtonStylesAndSizing() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+        let size = TerminalSize(columns: 180, rows: 32)
+        let currentTargetIndex = view.stylesheets.firstIndex { $0.fileName == "01-current-target.tcss" }!
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 130, y: 4), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 130, y: 5 + currentTargetIndex), pressed: true)), terminalSize: size), .none)
+
+        XCTAssertEqual(view.baseDemo.button.frame.width, 18)
+        XCTAssertEqual(view.baseDemo.button.frame.height, 1)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.width, 18)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.height, 1)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].style.background, .brightWhite)
+        XCTAssertEqual(view.baseDemo.demoButtons[1].focusedStyle.background, .blue)
+        XCTAssertTrue(view.baseDemo.demoButtons[1].focusedStyle.bold)
+
+        let canvas = view.render(size: size)
+        XCTAssertEqual(canvas[2, 11].style.background, .brightWhite)
+        XCTAssertEqual(canvas[18, 11].style.background, .blue)
+        XCTAssertEqual(canvas[34, 11].style.background, .brightWhite)
+    }
+
+    func testTSSDemoAppliesLargeButtonSizingAndCanReset() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+        let size = TerminalSize(columns: 200, rows: 36)
+        let bigIndex = view.stylesheets.firstIndex { $0.fileName == "04-big.tcss" }!
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 150, y: 4), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 150, y: 5 + bigIndex), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.width, 120)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.height, 8)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 150, y: 4), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 150, y: 5), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.width, 14)
+        XCTAssertEqual(view.baseDemo.demoButtons[0].frame.height, 1)
     }
 
     func testSyntaxHighlightedScrollViewUsesRichSwiftSyntaxColors() {

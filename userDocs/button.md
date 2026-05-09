@@ -52,6 +52,14 @@ Current default styling:
 - Focused: bright white text on blue background, bold.
 - Disabled: white text on bright black background.
 
+The same states are available as pure Swift properties:
+
+- `style`
+- `focusedStyle`
+- `disabledStyle`
+
+The optional TCSS layer can target `Button`, `Button:focus`, and `Button:disabled`. Width and height declarations can resize demo buttons, but one-row-high buttons remain the default and are still fully supported.
+
 ## Demo Coverage
 
 The demo renders three showcase buttons:
@@ -71,3 +79,5 @@ These examples are intentionally visible at the same time so style differences c
 - Mouse click outside the frame does not activate it.
 - Disabled button does not activate.
 - Demo renders normal, focused, and disabled button examples.
+- TCSS can style normal, focused, and disabled button states.
+- TCSS can resize buttons with `width` and `height` while preserving the one-row default.
