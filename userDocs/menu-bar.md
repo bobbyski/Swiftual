@@ -24,6 +24,16 @@ Current default styling:
 
 This is intentional: top-level menus should match the menu bar until clicked or opened.
 
+`MenuBar` also exposes pure Swift style properties:
+
+- `barStyle`
+- `selectedBarStyle`
+- `menuStyle`
+- `selectedItemStyle`
+- `disabledItemStyle`
+
+The optional TCSS demo can apply `MenuBar` rules to `barStyle` and `selectedBarStyle`; pure Swift styling remains the default API.
+
 ## Keyboard Behavior
 
 - Left arrow: moves to the previous top-level menu.
@@ -49,4 +59,3 @@ This is intentional: top-level menus should match the menu bar until clicked or 
 - Enter activates the selected item.
 - Mouse click on the title opens the menu.
 - Mouse click on an item activates it.
-

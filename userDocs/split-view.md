@@ -36,7 +36,7 @@ Use `topFrame`, `dividerFrame`, and `bottomFrame` to place child content.
 
 - `frame`: outer region controlled by the split view.
 - `dividerOffset`: current divider position from the leading edge or top edge.
-- `dividerWidth` / `dividerHeight`: divider thickness. Defaults to `1`. Demos may override this to `2` for easier mouse targeting.
+- `dividerWidth` / `dividerHeight`: divider thickness. Defaults to `1`.
 - `minLeading` / `minTrailing`: minimum left and right pane sizes for horizontal splits.
 - `minTop` / `minBottom`: minimum top and bottom pane sizes for vertical splits.
 - `isClamped`: when `true`, divider movement honors minimum pane sizes. When `false`, the divider may move to the outer bounds of the split view while still staying inside the split frame.

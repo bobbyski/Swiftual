@@ -21,6 +21,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     public var splitView: HorizontalSplitView
     public var panelStyle: TerminalStyle
     public var titleStyle: TerminalStyle
+    public var stylesheetDiagnostics: [TCSSDiagnostic]
 
     public init(
         baseDemo: MainViewContainer,
@@ -40,13 +41,14 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         self.splitView = HorizontalSplitView(
             frame: Rect(x: 0, y: 1, width: 180, height: 31),
             dividerOffset: max(10, 180 - panelWidth),
-            dividerWidth: 2,
             minLeading: 60,
             minTrailing: 32
         )
         self.panelStyle = panelStyle
         self.titleStyle = titleStyle
+        self.stylesheetDiagnostics = []
         updatePanelControls(for: TerminalSize(columns: 180, rows: 32))
+        applySelectedStylesheet(logSelection: false)
     }
 
     public mutating func handle(_ event: InputEvent, terminalSize: TerminalSize = TerminalSize(columns: 180, rows: 32)) -> MenuCommand {
@@ -123,7 +125,33 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         selectedStylesheetIndex = index
         sourceView.scrollOffset = 0
         updateSourceContent()
-        baseDemo.richLog.append("TCSS demo selected: \(selectedStylesheet.fileName).", style: TerminalStyle(foreground: .cyan, background: .black))
+        applySelectedStylesheet(logSelection: true)
+    }
+
+    private mutating func applySelectedStylesheet(logSelection: Bool) {
+        resetDemoStyles()
+        let model = TCSSStyleModelBuilder().parse(selectedStylesheet.source)
+        stylesheetDiagnostics = model.diagnostics
+        let cascade = TCSSCascade(model: model)
+
+        let screenStyle = cascade.style(for: TCSSStyleContext(typeName: "Screen"))
+        baseDemo.backgroundStyle = screenStyle.terminalStyle.applied(to: baseDemo.backgroundStyle)
+
+        let menuBarStyle = cascade.style(for: TCSSStyleContext(typeName: "MenuBar"))
+        baseDemo.menuBar.barStyle = menuBarStyle.terminalStyle.applied(to: baseDemo.menuBar.barStyle)
+        baseDemo.menuBar.selectedBarStyle = menuBarStyle.terminalStyle.applied(to: baseDemo.menuBar.selectedBarStyle)
+
+        if logSelection {
+            baseDemo.richLog.append("TCSS demo selected: \(selectedStylesheet.fileName).", style: TerminalStyle(foreground: .cyan, background: .black))
+            if !stylesheetDiagnostics.isEmpty {
+                baseDemo.richLog.append("TCSS diagnostics: \(stylesheetDiagnostics.count) issue(s).", style: TerminalStyle(foreground: .yellow, background: .black))
+            }
+        }
+    }
+
+    private mutating func resetDemoStyles() {
+        baseDemo.backgroundStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
+        baseDemo.menuBar.resetStyles()
     }
 
     private mutating func updatePanelControls(for size: TerminalSize) {

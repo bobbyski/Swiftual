@@ -38,12 +38,43 @@ public struct MenuBar: Equatable, Sendable {
     public var selectedMenuIndex: Int
     public var openedMenuIndex: Int?
     public var selectedItemIndex: Int
+    public var barStyle: TerminalStyle
+    public var selectedBarStyle: TerminalStyle
+    public var menuStyle: TerminalStyle
+    public var selectedItemStyle: TerminalStyle
+    public var disabledItemStyle: TerminalStyle
 
-    public init(menus: [Menu]) {
+    public init(
+        menus: [Menu],
+        barStyle: TerminalStyle = MenuBar.defaultBarStyle,
+        selectedBarStyle: TerminalStyle = MenuBar.defaultSelectedBarStyle,
+        menuStyle: TerminalStyle = MenuBar.defaultMenuStyle,
+        selectedItemStyle: TerminalStyle = MenuBar.defaultSelectedItemStyle,
+        disabledItemStyle: TerminalStyle = MenuBar.defaultDisabledItemStyle
+    ) {
         self.menus = menus
         self.selectedMenuIndex = 0
         self.openedMenuIndex = nil
         self.selectedItemIndex = 0
+        self.barStyle = barStyle
+        self.selectedBarStyle = selectedBarStyle
+        self.menuStyle = menuStyle
+        self.selectedItemStyle = selectedItemStyle
+        self.disabledItemStyle = disabledItemStyle
+    }
+
+    public static let defaultBarStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+    public static let defaultSelectedBarStyle = TerminalStyle(foreground: .blue, background: .brightWhite, bold: true)
+    public static let defaultMenuStyle = TerminalStyle(foreground: .black, background: .brightBlack)
+    public static let defaultSelectedItemStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+    public static let defaultDisabledItemStyle = TerminalStyle(foreground: .white, background: .brightBlack)
+
+    public mutating func resetStyles() {
+        barStyle = MenuBar.defaultBarStyle
+        selectedBarStyle = MenuBar.defaultSelectedBarStyle
+        menuStyle = MenuBar.defaultMenuStyle
+        selectedItemStyle = MenuBar.defaultSelectedItemStyle
+        disabledItemStyle = MenuBar.defaultDisabledItemStyle
     }
 
     public var isOpen: Bool {
@@ -96,8 +127,6 @@ public struct MenuBar: Equatable, Sendable {
     }
 
     public func render(in canvas: inout Canvas) {
-        let barStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
-        let selectedBarStyle = TerminalStyle(foreground: .blue, background: .brightWhite, bold: true)
         canvas.fill(rect: Rect(x: 0, y: 0, width: canvas.size.columns, height: 1), style: barStyle)
 
         var column = 0
@@ -119,9 +148,6 @@ public struct MenuBar: Equatable, Sendable {
         let originX = menuX(for: index)
         let width = max(12, menu.items.map { itemWidth($0) }.max() ?? 12)
         let height = max(1, menu.items.count)
-        let menuStyle = TerminalStyle(foreground: .black, background: .brightBlack)
-        let selectedStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
-        let disabledStyle = TerminalStyle(foreground: .white, background: .brightBlack)
 
         canvas.fill(rect: Rect(x: originX, y: 1, width: width, height: height), style: menuStyle)
         for itemIndex in menu.items.indices {
@@ -129,11 +155,11 @@ public struct MenuBar: Equatable, Sendable {
             let title = itemTitle(item, width: width)
             let style: TerminalStyle
             if itemIndex == selectedItemIndex {
-                style = selectedStyle
+                style = selectedItemStyle
             } else if item.isEnabled {
                 style = menuStyle
             } else {
-                style = disabledStyle
+                style = disabledItemStyle
             }
             canvas.drawText(title, at: Point(x: originX, y: itemIndex + 1), style: style)
         }
@@ -859,7 +885,6 @@ public struct MainViewContainer: Equatable, Sendable {
         return VerticalSplitView(
             frame: frame,
             dividerOffset: logSplitDividerOffset ?? preferredOffset,
-            dividerHeight: 2,
             minTop: 8,
             minBottom: 1,
             isClamped: splitClampSwitch.isOn,
@@ -868,18 +893,12 @@ public struct MainViewContainer: Equatable, Sendable {
     }
 
     private mutating func handleLogSplitDrag(_ event: InputEvent, terminalSize: TerminalSize) -> Bool {
-        guard case .mouse(let mouse) = event else { return false }
-
         var split = logSplitView(for: terminalSize)
         let command = split.handle(event)
         guard command != .none else { return false }
 
         logSplitDividerOffset = split.dividerOffset
         logSplitIsDragging = split.isDragging
-        richLog.append(
-            "Log split drag: mouse=(\(mouse.location.x),\(mouse.location.y)) dividerY=\(split.dividerFrame.y) offset=\(split.dividerOffset) clamped=\(splitClampSwitch.isOn).",
-            style: TerminalStyle(foreground: .cyan, background: .black)
-        )
         return true
     }
 

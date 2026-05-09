@@ -1,6 +1,6 @@
 # TCSS Parser
 
-`TCSSParser` parses optional Swiftual stylesheet text into a structured `TCSSStylesheet`. It does not apply styles yet; it provides the syntax model and diagnostics that the style model and cascade steps will consume.
+`TCSSParser` parses optional Swiftual stylesheet text into a structured `TCSSStylesheet`. It does not apply styles directly; it provides the syntax model and diagnostics that the style model and cascade steps consume.
 
 ## Creation
 
@@ -59,7 +59,7 @@ The parser keeps going after recoverable errors. It reports:
 
 ## Current Scope
 
-The parser stores declaration values as raw strings. Converting `background: blue` into a `TerminalStyle`, validating supported properties, computing specificity, and applying style rules are tracked as later TCSS checklist items.
+The parser stores declaration values as raw strings. `TCSSStyleModelBuilder` converts supported declaration values into typed Swift style data. Specificity, cascade ordering, selector matching, and applying style rules to controls are tracked as later TCSS checklist items.
 
 ## Test Checklist
 

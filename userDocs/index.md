@@ -28,6 +28,8 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Worker-Backed Async Task Demo](workers.md)
 - [TCSS/TSS Demo Harness](tcss-demo.md)
 - [TCSS Parser](tcss-parser.md)
+- [TCSS Style Model](tcss-style-model.md)
+- [TCSS Cascade](tcss-cascade.md)
 - [Input Events](input-events.md)
 - [Styling](styling.md)
 - [Canvas And Rendering](canvas-rendering.md)
@@ -37,7 +39,7 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 
 These pages should be added as each feature lands:
 
-- Optional TCSS layer
+- Remaining TCSS control application
 - Textual-inspired demo duplicates
 
 ## Documentation Rule
