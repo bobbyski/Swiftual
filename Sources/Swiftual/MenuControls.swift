@@ -249,6 +249,7 @@ public struct MainViewContainer: Equatable, Sendable {
     public var progressBar: ProgressBar
     public var progressAnimationStartedAt: Date?
     public var progressAnimationDuration: TimeInterval
+    public var richLog: RichLog
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -266,6 +267,12 @@ public struct MainViewContainer: Equatable, Sendable {
         progressBar: ProgressBar = ProgressBar(frame: Rect(x: 52, y: 18, width: 20, height: 1), value: 0.65, label: "Load"),
         progressAnimationStartedAt: Date? = nil,
         progressAnimationDuration: TimeInterval = 5,
+        richLog: RichLog = RichLog(
+            frame: Rect(x: 2, y: 21, width: 96, height: 3),
+            entries: [
+                RichLogEntry("Ready: interact with controls to populate the log.", style: TerminalStyle(foreground: .brightWhite, background: .black))
+            ]
+        ),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -281,6 +288,7 @@ public struct MainViewContainer: Equatable, Sendable {
         self.progressBar = progressBar
         self.progressAnimationStartedAt = progressAnimationStartedAt
         self.progressAnimationDuration = progressAnimationDuration
+        self.richLog = richLog
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -289,7 +297,7 @@ public struct MainViewContainer: Equatable, Sendable {
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
         if modal.isPresented {
-            _ = modal.handle(event)
+            logModalCommand(modal.handle(event))
             return .none
         }
 
@@ -300,43 +308,47 @@ public struct MainViewContainer: Equatable, Sendable {
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, mouse.location.y == 0 || menuBar.isOpen {
             focusedControl = .menuBar
-            return menuBar.handle(event)
+            let command = menuBar.handle(event)
+            logMenuCommand(command)
+            return command
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
             focusedControl = .button
-            return button.handle(event) == .activated("Quit") ? .quit : .none
+            let command = button.handle(event)
+            logButtonCommand(command)
+            return command == .activated("Quit") ? .quit : .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, textInput.frame.contains(mouse.location) {
             focusedControl = .textInput
-            _ = textInput.handle(event)
+            logTextInputCommand(textInput.handle(event))
             return .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, checkbox.frame.contains(mouse.location) {
             focusedControl = .checkbox
-            _ = checkbox.handle(event)
+            logCheckboxCommand(checkbox.handle(event))
             return .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, toggleSwitch.frame.contains(mouse.location) {
             focusedControl = .switch
-            _ = toggleSwitch.handle(event)
+            logSwitchCommand(toggleSwitch.handle(event))
             return .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left {
             if select.frame.contains(mouse.location) || select.isOpen {
                 focusedControl = .select
-                _ = select.handle(event)
+                logSelectCommand(select.handle(event))
                 return .none
             }
         }
 
         if case .mouse(let mouse) = event, scrollView.frame.contains(mouse.location) {
             focusedControl = .scrollView
-            _ = scrollView.handle(event)
+            logScrollViewCommand(scrollView.handle(event))
             return .none
         }
 
@@ -344,6 +356,7 @@ public struct MainViewContainer: Equatable, Sendable {
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, modalButton.frame.contains(mouse.location) {
             focusedControl = .modalButton
             modal.present()
+            richLog.append("Modal opened.", style: TerminalStyle(foreground: .cyan, background: .black))
             return .none
         }
 
@@ -356,44 +369,51 @@ public struct MainViewContainer: Equatable, Sendable {
 
         switch focusedControl {
         case .menuBar:
-            return menuBar.handle(event)
+            let command = menuBar.handle(event)
+            logMenuCommand(command)
+            return command
         case .button:
             button.isFocused = true
             switch button.handle(event) {
             case .activated("Quit"):
+                richLog.append("Button activated: Quit.", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
                 return .quit
-            case .activated:
+            case .activated(let title):
+                richLog.append("Button activated: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
                 return .none
             case .none:
                 if case .mouse = event {
                     focusedControl = .menuBar
-                    return menuBar.handle(event)
+                    let command = menuBar.handle(event)
+                    logMenuCommand(command)
+                    return command
                 }
                 return .none
             }
         case .textInput:
             textInput.isFocused = true
-            _ = textInput.handle(event)
+            logTextInputCommand(textInput.handle(event))
             return .none
         case .checkbox:
             checkbox.isFocused = true
-            _ = checkbox.handle(event)
+            logCheckboxCommand(checkbox.handle(event))
             return .none
         case .switch:
             toggleSwitch.isFocused = true
-            _ = toggleSwitch.handle(event)
+            logSwitchCommand(toggleSwitch.handle(event))
             return .none
         case .select:
             select.isFocused = true
-            _ = select.handle(event)
+            logSelectCommand(select.handle(event))
             return .none
         case .scrollView:
             scrollView.isFocused = true
-            _ = scrollView.handle(event)
+            logScrollViewCommand(scrollView.handle(event))
             return .none
         case .modalButton:
             if event == .key(.enter) || event == .key(.character(" ")) {
                 modal.present()
+                richLog.append("Modal opened.", style: TerminalStyle(foreground: .cyan, background: .black))
             }
             return .none
         case .progressButton:
@@ -407,6 +427,7 @@ public struct MainViewContainer: Equatable, Sendable {
     public mutating func startProgressAnimation(now: Date = Date()) {
         progressAnimationStartedAt = now
         progressBar.value = 0
+        richLog.append("Progress animation started: 0% to 100%.", style: TerminalStyle(foreground: .green, background: .black, bold: true))
     }
 
     public mutating func updateProgressAnimation(now: Date = Date()) {
@@ -417,6 +438,89 @@ public struct MainViewContainer: Equatable, Sendable {
         progressBar.value = fraction
         if fraction >= 1 {
             self.progressAnimationStartedAt = nil
+            richLog.append("Progress animation finished: 100%.", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        }
+    }
+
+    private mutating func logMenuCommand(_ command: MenuCommand) {
+        switch command {
+        case .none:
+            if menuBar.isOpen, let index = menuBar.openedMenuIndex, menuBar.menus.indices.contains(index) {
+                richLog.append("Menu opened: \(menuBar.menus[index].title).", style: TerminalStyle(foreground: .cyan, background: .black))
+            }
+        case .activated(let title):
+            richLog.append("Menu selected: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        case .quit:
+            richLog.append("Menu selected: Quit.", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        }
+    }
+
+    private mutating func logButtonCommand(_ command: ButtonCommand) {
+        guard case .activated(let title) = command else { return }
+        richLog.append("Button activated: \(title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+    }
+
+    private mutating func logTextInputCommand(_ command: TextInputCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Text input focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .changed(let text):
+            richLog.append("Text input changed: \(text).", style: TerminalStyle(foreground: .brightWhite, background: .black))
+        case .cursorMoved(let index):
+            richLog.append("Text input cursor moved: \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .submitted(let text):
+            richLog.append("Text input submitted: \(text).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logCheckboxCommand(_ command: CheckboxCommand) {
+        guard case .changed(let isChecked) = command else { return }
+        richLog.append("Checkbox changed: \(isChecked ? "checked" : "unchecked").", style: TerminalStyle(foreground: .green, background: .black))
+    }
+
+    private mutating func logSwitchCommand(_ command: SwitchCommand) {
+        guard case .changed(let isOn) = command else { return }
+        richLog.append("Switch changed: \(isOn ? "on" : "off").", style: TerminalStyle(foreground: .green, background: .black))
+    }
+
+    private mutating func logSelectCommand(_ command: SelectCommand) {
+        switch command {
+        case .opened:
+            richLog.append("Select opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .closed:
+            richLog.append("Select closed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Select highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .changed(_, let title):
+            richLog.append("Select picked: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logScrollViewCommand(_ command: ScrollViewCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Scroll view focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .scrolled(let offset):
+            richLog.append("Scroll view moved to offset \(offset).", style: TerminalStyle(foreground: .white, background: .black))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logModalCommand(_ command: ModalCommand) {
+        switch command {
+        case .dismissed:
+            richLog.append("Modal dismissed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Modal highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .selected(_, let title):
+            richLog.append("Modal picked option: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
         }
     }
 
@@ -484,6 +588,7 @@ public struct MainViewContainer: Equatable, Sendable {
         var scrollView = scrollView
         scrollView.isFocused = focusedControl == .scrollView
         scrollView.render(in: &canvas)
+        richLog.render(in: &canvas)
         modal.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)

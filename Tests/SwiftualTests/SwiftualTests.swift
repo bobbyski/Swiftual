@@ -719,6 +719,35 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[6, 1].style.background, .black)
     }
 
+    func testRichLogAppendsAndTrimsEntries() {
+        var richLog = RichLog(frame: Rect(x: 0, y: 0, width: 20, height: 3), maxEntries: 2)
+
+        richLog.append("One")
+        richLog.append("Two")
+        richLog.append("Three")
+
+        XCTAssertEqual(richLog.entries.map(\.message), ["Two", "Three"])
+    }
+
+    func testRichLogRendersTitleAndLatestEntries() {
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 5))
+        let richLog = RichLog(
+            frame: Rect(x: 2, y: 1, width: 20, height: 3),
+            entries: [
+                RichLogEntry("First"),
+                RichLogEntry("Second", style: TerminalStyle(foreground: .green, background: .black, bold: true)),
+                RichLogEntry("Third")
+            ]
+        )
+
+        richLog.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "R")
+        XCTAssertEqual(canvas[2, 2].character, "S")
+        XCTAssertEqual(canvas[2, 3].character, "T")
+        XCTAssertEqual(canvas[2, 2].style.foreground, .green)
+    }
+
     func testModalRendersWhenPresented() {
         var canvas = Canvas(size: TerminalSize(columns: 80, rows: 24))
         let modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
@@ -1038,6 +1067,51 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.focusedControl, .progressButton)
     }
 
+    func testMainViewLogsControlActions() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 47, y: 6), pressed: true)))
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 69, y: 6), pressed: true)))
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 85, y: 6), pressed: true)))
+        _ = view.handle(.key(.down))
+        _ = view.handle(.key(.enter))
+        _ = view.handle(.mouse(MouseEvent(button: .scrollDown, location: Point(x: 75, y: 15), pressed: true)))
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 58, y: 19), pressed: true)))
+
+        let messages = view.richLog.entries.map(\.message)
+        XCTAssertTrue(messages.contains("Checkbox changed: unchecked."))
+        XCTAssertTrue(messages.contains("Switch changed: off."))
+        XCTAssertTrue(messages.contains("Select picked: Beta."))
+        XCTAssertTrue(messages.contains("Scroll view moved to offset 1."))
+        XCTAssertTrue(messages.contains("Progress animation started: 0% to 100%."))
+    }
+
+    func testMainViewLogsModalOptionSelection() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 38, y: 18), pressed: true)))
+        _ = view.handle(.key(.right))
+        _ = view.handle(.key(.enter))
+
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Modal picked option: Cancel."))
+    }
+
     func testMainViewProgressAnimationAdvancesOverFiveSeconds() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -1311,6 +1385,24 @@ final class SwiftualTests: XCTestCase {
 
         XCTAssertEqual(canvas[58, 19].character, "A")
         XCTAssertEqual(canvas[64, 19].character, "e")
+    }
+
+    func testDemoRendersRichLogExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[3, 21].character, "R")
+        XCTAssertEqual(canvas[2, 22].character, "R")
+        XCTAssertEqual(canvas[7, 22].character, ":")
     }
 }
 

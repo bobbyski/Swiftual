@@ -20,6 +20,7 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Scroll View](scroll-view.md)
 - [Modal Screen](modal.md)
 - [Progress Bar](progress-bar.md)
+- [Rich Log](rich-log.md)
 - [Input Events](input-events.md)
 - [Styling](styling.md)
 - [Canvas And Rendering](canvas-rendering.md)
@@ -29,7 +30,6 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 
 These pages should be added as each feature lands:
 
-- Log/Rich log
 - Data table
 - Tree
 - Command palette
