@@ -42,6 +42,26 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 1, y: 1), pressed: true))), .quit)
     }
 
+    func testMenuMouseRoutingWorksAfterOtherControlHasFocus() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 58, y: 19), pressed: true)))
+        XCTAssertEqual(view.focusedControl, .progressButton)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 1, y: 0), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .menuBar)
+        XCTAssertTrue(view.menuBar.isOpen)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 1, y: 1), pressed: true))), .quit)
+    }
+
     func testRenderContainsBlueMenuBarAndGreyBody() {
         let view = MainViewContainer(
             menuBar: MenuBar(
@@ -684,7 +704,8 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[8, 1].character, "L")
         XCTAssertEqual(canvas[13, 1].character, "6")
         XCTAssertEqual(canvas[15, 1].character, "%")
-        XCTAssertEqual(canvas[8, 1].style.background, .blue)
+        XCTAssertEqual(canvas[8, 1].style.background, .green)
+        XCTAssertEqual(canvas[15, 1].style.background, .black)
     }
 
     func testProgressBarRendersIndeterminatePulse() {
@@ -980,6 +1001,65 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.focusedControl, .modalButton)
     }
 
+    func testMainViewCanStartProgressAnimationWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<8 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .progressButton)
+        XCTAssertEqual(view.handle(.key(.enter)), .none)
+
+        XCTAssertNotNil(view.progressAnimationStartedAt)
+        XCTAssertEqual(view.progressBar.value, 0)
+    }
+
+    func testMainViewCanStartProgressAnimationWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 58, y: 19), pressed: true))), .none)
+
+        XCTAssertNotNil(view.progressAnimationStartedAt)
+        XCTAssertEqual(view.progressBar.value, 0)
+        XCTAssertEqual(view.focusedControl, .progressButton)
+    }
+
+    func testMainViewProgressAnimationAdvancesOverFiveSeconds() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+        let start = Date(timeIntervalSinceReferenceDate: 100)
+
+        view.startProgressAnimation(now: start)
+        view.updateProgressAnimation(now: start.addingTimeInterval(2.5))
+        XCTAssertEqual(view.progressBar.value ?? -1, 0.5, accuracy: 0.001)
+        XCTAssertNotNil(view.progressAnimationStartedAt)
+
+        view.updateProgressAnimation(now: start.addingTimeInterval(5))
+        XCTAssertEqual(view.progressBar.value ?? -1, 1, accuracy: 0.001)
+        XCTAssertNil(view.progressAnimationStartedAt)
+    }
+
     func testMainViewRoutesEventsToPresentedModal() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -1214,6 +1294,23 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[58, 18].character, "L")
         XCTAssertEqual(canvas[63, 18].character, "6")
         XCTAssertEqual(canvas[65, 18].character, "%")
+    }
+
+    func testDemoRendersProgressAnimationButtonExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[58, 19].character, "A")
+        XCTAssertEqual(canvas[64, 19].character, "e")
     }
 }
 

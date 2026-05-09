@@ -109,8 +109,8 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
         current.c_iflag &= ~(UInt(IXON | ICRNL | BRKINT | INPCK | ISTRIP))
         current.c_oflag &= ~(UInt(OPOST))
         current.c_cflag |= UInt(CS8)
-        current.c_cc.16 = 1
-        current.c_cc.17 = 0
+        current.c_cc.16 = 0
+        current.c_cc.17 = 1
 
         guard tcsetattr(input, TCSAFLUSH, &current) == 0 else {
             throw TerminalError.rawModeFailed(errno)

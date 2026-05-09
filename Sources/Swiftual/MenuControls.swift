@@ -247,6 +247,8 @@ public struct MainViewContainer: Equatable, Sendable {
     public var scrollView: ScrollView
     public var modal: Modal
     public var progressBar: ProgressBar
+    public var progressAnimationStartedAt: Date?
+    public var progressAnimationDuration: TimeInterval
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -262,6 +264,8 @@ public struct MainViewContainer: Equatable, Sendable {
         scrollView: ScrollView = ScrollView(frame: Rect(x: 74, y: 14, width: 24, height: 5), content: (1...12).map { "Scroll row \($0)" }),
         modal: Modal = Modal(frame: Rect(x: 24, y: 8, width: 36, height: 8), title: "Swiftual", message: "Modal screen example", buttons: [ModalButton("OK"), ModalButton("Cancel")]),
         progressBar: ProgressBar = ProgressBar(frame: Rect(x: 52, y: 18, width: 20, height: 1), value: 0.65, label: "Load"),
+        progressAnimationStartedAt: Date? = nil,
+        progressAnimationDuration: TimeInterval = 5,
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -275,6 +279,8 @@ public struct MainViewContainer: Equatable, Sendable {
         self.scrollView = scrollView
         self.modal = modal
         self.progressBar = progressBar
+        self.progressAnimationStartedAt = progressAnimationStartedAt
+        self.progressAnimationDuration = progressAnimationDuration
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -290,6 +296,11 @@ public struct MainViewContainer: Equatable, Sendable {
         if event == .key(.tab), !menuBar.isOpen {
             focusedControl = focusedControl.next
             return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, mouse.location.y == 0 || menuBar.isOpen {
+            focusedControl = .menuBar
+            return menuBar.handle(event)
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
@@ -336,6 +347,13 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
+        let progressButton = Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, progressButton.frame.contains(mouse.location) {
+            focusedControl = .progressButton
+            startProgressAnimation()
+            return .none
+        }
+
         switch focusedControl {
         case .menuBar:
             return menuBar.handle(event)
@@ -378,6 +396,27 @@ public struct MainViewContainer: Equatable, Sendable {
                 modal.present()
             }
             return .none
+        case .progressButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                startProgressAnimation()
+            }
+            return .none
+        }
+    }
+
+    public mutating func startProgressAnimation(now: Date = Date()) {
+        progressAnimationStartedAt = now
+        progressBar.value = 0
+    }
+
+    public mutating func updateProgressAnimation(now: Date = Date()) {
+        guard let progressAnimationStartedAt else { return }
+        let duration = max(0.001, progressAnimationDuration)
+        let elapsed = now.timeIntervalSince(progressAnimationStartedAt)
+        let fraction = min(1, max(0, elapsed / duration))
+        progressBar.value = fraction
+        if fraction >= 1 {
+            self.progressAnimationStartedAt = nil
         }
     }
 
@@ -425,6 +464,7 @@ public struct MainViewContainer: Equatable, Sendable {
 
         Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1), isFocused: focusedControl == .modalButton).render(in: &canvas)
         progressBar.render(in: &canvas)
+        Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1), isFocused: focusedControl == .progressButton).render(in: &canvas)
 
         var button = button
         button.isFocused = focusedControl == .button
@@ -491,6 +531,7 @@ public enum MainViewFocus: Equatable, Sendable {
     case select
     case scrollView
     case modalButton
+    case progressButton
 
     var next: MainViewFocus {
         switch self {
@@ -509,6 +550,8 @@ public enum MainViewFocus: Equatable, Sendable {
         case .scrollView:
             return .modalButton
         case .modalButton:
+            return .progressButton
+        case .progressButton:
             return .menuBar
         }
     }

@@ -22,7 +22,7 @@ public struct ProgressBar: CanvasRenderable, Equatable, Sendable {
         trackStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         completedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .green, bold: true),
         pulseStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .cyan, bold: true),
-        textStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+        textStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, bold: true)
     ) {
         self.frame = frame
         self.value = value
@@ -60,7 +60,7 @@ public struct ProgressBar: CanvasRenderable, Equatable, Sendable {
             let visible = String(text.prefix(frame.width))
             let textX = frame.x + max(0, (frame.width - visible.count) / 2)
             let textY = frame.y + max(0, frame.height / 2)
-            canvas.drawText(visible, at: Point(x: textX, y: textY), style: textStyle)
+            drawTextOverlay(visible, at: Point(x: textX, y: textY), in: &canvas)
         }
     }
 
@@ -88,5 +88,23 @@ public struct ProgressBar: CanvasRenderable, Equatable, Sendable {
             rect: Rect(x: visibleStart, y: frame.y, width: visibleEnd - visibleStart, height: frame.height),
             style: pulseStyle
         )
+    }
+
+    private func drawTextOverlay(_ text: String, at point: Point, in canvas: inout Canvas) {
+        var column = point.x
+        for character in text {
+            guard column < canvas.size.columns else { return }
+            if column >= 0 && point.y >= 0 && point.y < canvas.size.rows {
+                let existingStyle = canvas[column, point.y].style
+                let style = TerminalStyle(
+                    foreground: textStyle.foreground,
+                    background: textStyle.background ?? existingStyle.background,
+                    bold: textStyle.bold,
+                    inverse: textStyle.inverse
+                )
+                canvas[column, point.y] = Cell(character, style: style)
+            }
+            column += 1
+        }
     }
 }
