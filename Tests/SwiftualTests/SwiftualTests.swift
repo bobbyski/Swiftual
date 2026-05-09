@@ -748,6 +748,160 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[2, 2].style.foreground, .green)
     }
 
+    func testDataTableRendersHeaderRowsAndSelection() {
+        var canvas = Canvas(size: TerminalSize(columns: 40, rows: 8))
+        let table = DataTable(
+            frame: Rect(x: 2, y: 1, width: 24, height: 4),
+            columns: [DataTableColumn("Name", width: 10), DataTableColumn("State", width: 10)],
+            rows: [["Menu", "Ready"], ["Table", "New"]],
+            selectedRowIndex: 1,
+            isFocused: true
+        )
+
+        table.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "N")
+        XCTAssertEqual(canvas[12, 1].character, "|")
+        XCTAssertEqual(canvas[12, 1].style.background, .cyan)
+        XCTAssertEqual(canvas[3, 2].character, "M")
+        XCTAssertEqual(canvas[3, 3].character, "T")
+        XCTAssertEqual(canvas[3, 3].style.background, .blue)
+        XCTAssertEqual(canvas[12, 3].style.background, .blue)
+        XCTAssertTrue(canvas[3, 3].style.bold)
+    }
+
+    func testDataTableKeyboardSelectionAndActivation() {
+        var table = DataTable(
+            frame: Rect(x: 0, y: 0, width: 24, height: 3),
+            columns: [DataTableColumn("Name", width: 10), DataTableColumn("State", width: 10)],
+            rows: [["Menu", "Ready"], ["Button", "Ready"], ["Table", "New"]],
+            isFocused: true
+        )
+
+        XCTAssertEqual(table.handle(.key(.down)), .selected(1, ["Button", "Ready"]))
+        XCTAssertEqual(table.handle(.key(.enter)), .activated(1, ["Button", "Ready"]))
+        XCTAssertEqual(table.scrollOffset, 0)
+        XCTAssertEqual(table.handle(.key(.down)), .selected(2, ["Table", "New"]))
+        XCTAssertEqual(table.scrollOffset, 1)
+    }
+
+    func testDataTableMouseSelection() {
+        var table = DataTable(
+            frame: Rect(x: 2, y: 1, width: 24, height: 4),
+            columns: [DataTableColumn("Name", width: 10), DataTableColumn("State", width: 10)],
+            rows: [["Menu", "Ready"], ["Button", "Ready"], ["Table", "New"]]
+        )
+
+        XCTAssertEqual(table.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 3), pressed: true))), .selected(1, ["Button", "Ready"]))
+        XCTAssertTrue(table.isFocused)
+        XCTAssertEqual(table.selectedRowIndex, 1)
+    }
+
+    func testTreeRendersExpandedRowsAndSelection() {
+        var canvas = Canvas(size: TerminalSize(columns: 40, rows: 8))
+        let tree = Tree(
+            frame: Rect(x: 2, y: 1, width: 24, height: 5),
+            roots: [
+                TreeNode("Root", children: [
+                    TreeNode("Child"),
+                    TreeNode("Folder", isExpanded: false, children: [TreeNode("Hidden")])
+                ])
+            ],
+            selectedPath: [0, 1],
+            isFocused: true
+        )
+
+        tree.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "v")
+        XCTAssertEqual(canvas[4, 1].character, "R")
+        XCTAssertEqual(canvas[4, 2].character, "-")
+        XCTAssertEqual(canvas[6, 2].character, "C")
+        XCTAssertEqual(canvas[4, 3].character, ">")
+        XCTAssertEqual(canvas[6, 3].character, "F")
+        XCTAssertEqual(canvas[4, 3].style.background, .blue)
+        XCTAssertTrue(canvas[4, 3].style.bold)
+    }
+
+    func testTreeKeyboardSelectionExpansionAndActivation() {
+        var tree = Tree(
+            frame: Rect(x: 0, y: 0, width: 24, height: 3),
+            roots: [
+                TreeNode("Root", children: [
+                    TreeNode("Child"),
+                    TreeNode("Folder", isExpanded: false, children: [TreeNode("Grandchild")])
+                ])
+            ],
+            isFocused: true
+        )
+
+        XCTAssertEqual(tree.handle(.key(.down)), .selected(TreeRow(path: [0, 0], title: "Child", depth: 1, isExpanded: true, hasChildren: false)))
+        XCTAssertEqual(tree.handle(.key(.down)), .selected(TreeRow(path: [0, 1], title: "Folder", depth: 1, isExpanded: false, hasChildren: true)))
+        XCTAssertEqual(tree.handle(.key(.right)), .expanded(TreeRow(path: [0, 1], title: "Folder", depth: 1, isExpanded: true, hasChildren: true)))
+        XCTAssertEqual(tree.handle(.key(.down)), .selected(TreeRow(path: [0, 1, 0], title: "Grandchild", depth: 2, isExpanded: true, hasChildren: false)))
+        XCTAssertEqual(tree.handle(.key(.enter)), .activated(TreeRow(path: [0, 1, 0], title: "Grandchild", depth: 2, isExpanded: true, hasChildren: false)))
+    }
+
+    func testTreeMouseSelectionAndToggle() {
+        var tree = Tree(
+            frame: Rect(x: 2, y: 1, width: 24, height: 5),
+            roots: [
+                TreeNode("Root", children: [
+                    TreeNode("Folder", children: [TreeNode("Grandchild")])
+                ])
+            ]
+        )
+
+        XCTAssertEqual(tree.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 2), pressed: true))), .collapsed(TreeRow(path: [0, 0], title: "Folder", depth: 1, isExpanded: false, hasChildren: true)))
+        XCTAssertTrue(tree.isFocused)
+        XCTAssertEqual(tree.visibleRows.count, 2)
+    }
+
+    func testTreeRendersScrollbarWhenContentOverflows() {
+        var canvas = Canvas(size: TerminalSize(columns: 40, rows: 8))
+        let tree = Tree(
+            frame: Rect(x: 2, y: 1, width: 12, height: 3),
+            roots: [
+                TreeNode("Root", children: (1...6).map { TreeNode("Child \($0)") })
+            ]
+        )
+
+        tree.render(in: &canvas)
+
+        XCTAssertEqual(canvas[12, 1].style.background, .blue)
+        XCTAssertEqual(canvas[13, 1].style.background, .blue)
+        XCTAssertEqual(canvas[12, 2].style.background, .brightBlack)
+        XCTAssertEqual(canvas[13, 2].style.background, .brightBlack)
+        XCTAssertEqual(canvas[11, 1].character, " ")
+    }
+
+    func testTreeMouseWheelScrollsInsideFrame() {
+        var tree = Tree(
+            frame: Rect(x: 2, y: 1, width: 12, height: 3),
+            roots: [
+                TreeNode("Root", children: (1...6).map { TreeNode("Child \($0)") })
+            ]
+        )
+
+        XCTAssertEqual(tree.handle(.mouse(MouseEvent(button: .scrollDown, location: Point(x: 3, y: 2), pressed: true))), .scrolled(1))
+        XCTAssertEqual(tree.scrollOffset, 1)
+        XCTAssertEqual(tree.handle(.mouse(MouseEvent(button: .scrollUp, location: Point(x: 3, y: 2), pressed: true))), .scrolled(0))
+        XCTAssertEqual(tree.scrollOffset, 0)
+    }
+
+    func testTreeScrollbarDragSetsScrollOffset() {
+        var tree = Tree(
+            frame: Rect(x: 2, y: 1, width: 12, height: 3),
+            roots: [
+                TreeNode("Root", children: (1...6).map { TreeNode("Child \($0)") })
+            ]
+        )
+
+        XCTAssertEqual(tree.handle(.mouse(MouseEvent(button: .left, location: Point(x: 12, y: 3), pressed: true))), .scrolled(4))
+        XCTAssertEqual(tree.scrollOffset, 4)
+        XCTAssertTrue(tree.isFocused)
+    }
+
     func testModalRendersWhenPresented() {
         var canvas = Canvas(size: TerminalSize(columns: 80, rows: 24))
         let modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
@@ -1088,6 +1242,80 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.focusedControl, .progressButton)
     }
 
+    func testMainViewCanFocusAndUseDataTableWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<9 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .dataTable)
+        XCTAssertEqual(view.handle(.key(.down)), .none)
+        XCTAssertEqual(view.dataTable.selectedRowIndex, 1)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Data table selected row 1: Button / Ready."))
+        XCTAssertEqual(view.handle(.key(.enter)), .none)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Data table activated row 1: Button / Ready."))
+    }
+
+    func testMainViewCanFocusAndUseDataTableWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 75, y: 10), pressed: true))), .none)
+
+        XCTAssertEqual(view.focusedControl, .dataTable)
+        XCTAssertEqual(view.dataTable.selectedRowIndex, 1)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Data table selected row 1: Button / Ready."))
+    }
+
+    func testMainViewCanFocusAndUseTreeWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<10 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .tree)
+        XCTAssertEqual(view.handle(.key(.down)), .none)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Tree selected: Controls."))
+        XCTAssertEqual(view.handle(.key(.left)), .none)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Tree collapsed: Controls."))
+    }
+
+    func testMainViewCanFocusAndUseTreeWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 101, y: 9), pressed: true))), .none)
+
+        XCTAssertEqual(view.focusedControl, .tree)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Tree collapsed: Controls."))
+    }
+
     func testMainViewLogsControlActions() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -1106,6 +1334,7 @@ final class SwiftualTests: XCTestCase {
         _ = view.handle(.key(.enter))
         _ = view.handle(.mouse(MouseEvent(button: .scrollDown, location: Point(x: 75, y: 15), pressed: true)))
         _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 58, y: 19), pressed: true)))
+        _ = view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 75, y: 12), pressed: true)))
 
         let messages = view.richLog.entries.map(\.message)
         XCTAssertTrue(messages.contains("Checkbox changed: unchecked."))
@@ -1113,6 +1342,7 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(messages.contains("Select picked: Beta."))
         XCTAssertTrue(messages.contains("Scroll view moved to offset 1."))
         XCTAssertTrue(messages.contains("Progress animation started: 0% to 100%."))
+        XCTAssertTrue(messages.contains("Data table selected row 3: Log / Ready."))
     }
 
     func testMainViewLogsModalOptionSelection() {
@@ -1424,6 +1654,44 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[3, 20].character, "R")
         XCTAssertEqual(canvas[2, 21].character, "R")
         XCTAssertEqual(canvas[7, 21].character, ":")
+    }
+
+    func testDemoRendersDataTableExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[75, 8].character, "F")
+        XCTAssertEqual(canvas[88, 8].character, "S")
+        XCTAssertEqual(canvas[75, 9].character, "M")
+        XCTAssertEqual(canvas[75, 12].character, "L")
+    }
+
+    func testDemoRendersTreeExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 140, rows: 24))
+
+        XCTAssertEqual(canvas[100, 8].character, "v")
+        XCTAssertEqual(canvas[102, 8].character, "S")
+        XCTAssertEqual(canvas[102, 9].character, "v")
+        XCTAssertEqual(canvas[104, 9].character, "C")
     }
 }
 

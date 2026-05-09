@@ -250,6 +250,8 @@ public struct MainViewContainer: Equatable, Sendable {
     public var progressAnimationStartedAt: Date?
     public var progressAnimationDuration: TimeInterval
     public var richLog: RichLog
+    public var dataTable: DataTable
+    public var tree: Tree
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -273,6 +275,36 @@ public struct MainViewContainer: Equatable, Sendable {
                 RichLogEntry("Ready: interact with controls to populate the log.", style: TerminalStyle(foreground: .brightWhite, background: .black))
             ]
         ),
+        dataTable: DataTable = DataTable(
+            frame: Rect(x: 74, y: 8, width: 24, height: 5),
+            columns: [
+                DataTableColumn("Feature", width: 12),
+                DataTableColumn("State", width: 10)
+            ],
+            rows: [
+                ["Menu", "Ready"],
+                ["Button", "Ready"],
+                ["Modal", "Ready"],
+                ["Log", "Ready"],
+                ["Table", "New"]
+            ]
+        ),
+        tree: Tree = Tree(
+            frame: Rect(x: 100, y: 8, width: 30, height: 7),
+            roots: [
+                TreeNode("Swiftual", children: [
+                    TreeNode("Controls", children: [
+                        TreeNode("Button"),
+                        TreeNode("DataTable"),
+                        TreeNode("Tree")
+                    ]),
+                    TreeNode("Runtime", isExpanded: false, children: [
+                        TreeNode("Terminal"),
+                        TreeNode("Events")
+                    ])
+                ])
+            ]
+        ),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -289,6 +321,8 @@ public struct MainViewContainer: Equatable, Sendable {
         self.progressAnimationStartedAt = progressAnimationStartedAt
         self.progressAnimationDuration = progressAnimationDuration
         self.richLog = richLog
+        self.dataTable = dataTable
+        self.tree = tree
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -349,6 +383,18 @@ public struct MainViewContainer: Equatable, Sendable {
         if case .mouse(let mouse) = event, scrollView.frame.contains(mouse.location) {
             focusedControl = .scrollView
             logScrollViewCommand(scrollView.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, dataTable.frame.contains(mouse.location) {
+            focusedControl = .dataTable
+            logDataTableCommand(dataTable.handle(event))
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, tree.frame.contains(mouse.location) {
+            focusedControl = .tree
+            logTreeCommand(tree.handle(event))
             return .none
         }
 
@@ -420,6 +466,14 @@ public struct MainViewContainer: Equatable, Sendable {
             if event == .key(.enter) || event == .key(.character(" ")) {
                 startProgressAnimation()
             }
+            return .none
+        case .dataTable:
+            dataTable.isFocused = true
+            logDataTableCommand(dataTable.handle(event))
+            return .none
+        case .tree:
+            tree.isFocused = true
+            logTreeCommand(tree.handle(event))
             return .none
         }
     }
@@ -524,6 +578,38 @@ public struct MainViewContainer: Equatable, Sendable {
         }
     }
 
+    private mutating func logDataTableCommand(_ command: DataTableCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Data table focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .selected(let index, let row):
+            richLog.append("Data table selected row \(index): \(row.joined(separator: " / ")).", style: TerminalStyle(foreground: .white, background: .black))
+        case .activated(let index, let row):
+            richLog.append("Data table activated row \(index): \(row.joined(separator: " / ")).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
+    private mutating func logTreeCommand(_ command: TreeCommand) {
+        switch command {
+        case .focused:
+            richLog.append("Tree focused.", style: TerminalStyle(foreground: .cyan, background: .black))
+        case .selected(let row):
+            richLog.append("Tree selected: \(row.title).", style: TerminalStyle(foreground: .white, background: .black))
+        case .expanded(let row):
+            richLog.append("Tree expanded: \(row.title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .collapsed(let row):
+            richLog.append("Tree collapsed: \(row.title).", style: TerminalStyle(foreground: .yellow, background: .black, bold: true))
+        case .activated(let row):
+            richLog.append("Tree activated: \(row.title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .scrolled(let offset):
+            richLog.append("Tree moved to offset \(offset).", style: TerminalStyle(foreground: .white, background: .black))
+        case .none:
+            break
+        }
+    }
+
     public func render(size: TerminalSize) -> Canvas {
         var canvas = Canvas(size: size, fill: Cell(" ", style: backgroundStyle))
         canvas.fill(rect: Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1)), style: backgroundStyle)
@@ -588,6 +674,12 @@ public struct MainViewContainer: Equatable, Sendable {
         var scrollView = scrollView
         scrollView.isFocused = focusedControl == .scrollView
         scrollView.render(in: &canvas)
+        var dataTable = dataTable
+        dataTable.isFocused = focusedControl == .dataTable
+        dataTable.render(in: &canvas)
+        var tree = tree
+        tree.isFocused = focusedControl == .tree
+        tree.render(in: &canvas)
         richLog.render(in: &canvas)
         modal.render(in: &canvas)
         let menuBar = menuBar
@@ -637,6 +729,8 @@ public enum MainViewFocus: Equatable, Sendable {
     case scrollView
     case modalButton
     case progressButton
+    case dataTable
+    case tree
 
     var next: MainViewFocus {
         switch self {
@@ -657,6 +751,10 @@ public enum MainViewFocus: Equatable, Sendable {
         case .modalButton:
             return .progressButton
         case .progressButton:
+            return .dataTable
+        case .dataTable:
+            return .tree
+        case .tree:
             return .menuBar
         }
     }
