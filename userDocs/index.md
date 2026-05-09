@@ -16,6 +16,7 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Text Input](text-input.md)
 - [Checkbox](checkbox.md)
 - [Switch](switch.md)
+- [Select](select.md)
 - [Input Events](input-events.md)
 - [Styling](styling.md)
 - [Canvas And Rendering](canvas-rendering.md)
@@ -25,7 +26,6 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 
 These pages should be added as each feature lands:
 
-- Select/menu list
 - Scroll view
 - Modal screen
 - Progress bar

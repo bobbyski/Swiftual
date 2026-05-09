@@ -541,6 +541,65 @@ final class SwiftualTests: XCTestCase {
         XCTAssertFalse(toggle.isOn)
     }
 
+    func testSelectRendersClosedState() {
+        var canvas = Canvas(size: TerminalSize(columns: 32, rows: 6))
+        let select = Select(frame: Rect(x: 2, y: 1, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta")])
+
+        select.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "A")
+        XCTAssertEqual(canvas[9, 1].character, "v")
+    }
+
+    func testSelectRendersOpenOptions() {
+        var canvas = Canvas(size: TerminalSize(columns: 32, rows: 6))
+        var select = Select(frame: Rect(x: 2, y: 1, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta")], isFocused: true)
+        _ = select.handle(.key(.down))
+
+        select.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 2].character, "A")
+        XCTAssertEqual(canvas[3, 3].character, "B")
+        XCTAssertEqual(canvas[2, 2].style.background, .blue)
+    }
+
+    func testSelectKeyboardNavigationAndSelection() {
+        var select = Select(frame: Rect(x: 0, y: 0, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta"), SelectOption("Gamma")], isFocused: true)
+
+        XCTAssertEqual(select.handle(.key(.down)), .opened)
+        XCTAssertEqual(select.handle(.key(.down)), .highlighted(1))
+        XCTAssertEqual(select.handle(.key(.enter)), .changed(1, "Beta"))
+        XCTAssertEqual(select.selectedIndex, 1)
+        XCTAssertFalse(select.isOpen)
+    }
+
+    func testSelectSkipsDisabledOptions() {
+        var select = Select(frame: Rect(x: 0, y: 0, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta", isEnabled: false), SelectOption("Gamma")], isFocused: true)
+
+        XCTAssertEqual(select.handle(.key(.down)), .opened)
+        XCTAssertEqual(select.handle(.key(.down)), .highlighted(2))
+        XCTAssertEqual(select.highlightedIndex, 2)
+    }
+
+    func testSelectEscapeClosesWithoutChangingSelection() {
+        var select = Select(frame: Rect(x: 0, y: 0, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta")], isFocused: true)
+
+        _ = select.handle(.key(.down))
+        _ = select.handle(.key(.down))
+        XCTAssertEqual(select.handle(.key(.escape)), .closed)
+        XCTAssertEqual(select.selectedIndex, 0)
+        XCTAssertFalse(select.isOpen)
+    }
+
+    func testSelectMouseOpensAndSelectsOption() {
+        var select = Select(frame: Rect(x: 2, y: 1, width: 12, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta")])
+
+        XCTAssertEqual(select.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 1), pressed: true))), .opened)
+        XCTAssertTrue(select.isOpen)
+        XCTAssertEqual(select.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 3), pressed: true))), .changed(1, "Beta"))
+        XCTAssertEqual(select.selectedIndex, 1)
+    }
+
     func testMainViewCanFocusAndActivateButtonWithKeyboard() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -661,6 +720,48 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 69, y: 6), pressed: true))), .none)
         XCTAssertEqual(view.focusedControl, .switch)
         XCTAssertFalse(view.toggleSwitch.isOn)
+    }
+
+    func testMainViewCanFocusAndUseSelectWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        XCTAssertEqual(view.focusedControl, .select)
+        XCTAssertEqual(view.handle(.key(.down)), .none)
+        XCTAssertTrue(view.select.isOpen)
+        XCTAssertEqual(view.handle(.key(.down)), .none)
+        XCTAssertEqual(view.handle(.key(.enter)), .none)
+        XCTAssertEqual(view.select.selectedIndex, 1)
+    }
+
+    func testMainViewCanFocusAndUseSelectWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 85, y: 6), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .select)
+        XCTAssertTrue(view.select.isOpen)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 85, y: 8), pressed: true))), .none)
+        XCTAssertEqual(view.select.selectedIndex, 1)
     }
 
     func testMainViewCanActivateButtonWithMouse() {
@@ -811,6 +912,23 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[70, 6].character, "N")
         XCTAssertEqual(canvas[73, 6].character, "P")
         XCTAssertEqual(canvas[68, 6].style.background, .green)
+    }
+
+    func testDemoRendersSelectExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[85, 6].character, "A")
+        XCTAssertEqual(canvas[91, 6].character, "v")
     }
 }
 
