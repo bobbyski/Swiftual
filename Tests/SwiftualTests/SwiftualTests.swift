@@ -1316,6 +1316,91 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(view.richLog.entries.map(\.message).contains("Tree collapsed: Controls."))
     }
 
+    func testCommandPaletteFiltersAndSelectsWithKeyboard() {
+        var palette = CommandPalette(
+            frame: Rect(x: 2, y: 2, width: 30, height: 8),
+            items: [
+                CommandPaletteItem("Open file"),
+                CommandPaletteItem("Start worker"),
+                CommandPaletteItem("Quit")
+            ],
+            isPresented: true
+        )
+
+        XCTAssertEqual(palette.handle(.key(.character("w"))), .queryChanged("w"))
+        XCTAssertEqual(palette.filteredItems.map(\.title), ["Start worker"])
+        XCTAssertEqual(palette.handle(.key(.enter)), .selected("Start worker"))
+        XCTAssertFalse(palette.isPresented)
+    }
+
+    func testCommandPaletteMouseSelectsVisibleItem() {
+        var palette = CommandPalette(
+            frame: Rect(x: 2, y: 2, width: 30, height: 8),
+            items: [
+                CommandPaletteItem("Open file"),
+                CommandPaletteItem("Start worker")
+            ],
+            isPresented: true
+        )
+
+        XCTAssertEqual(palette.handle(.mouse(MouseEvent(button: .left, location: Point(x: 4, y: 7), pressed: true))), .selected("Start worker"))
+        XCTAssertFalse(palette.isPresented)
+    }
+
+    func testInputParserParsesControlPForCommandPalette() {
+        XCTAssertEqual(InputParser().parse([16]), [.key(.controlP)])
+    }
+
+    func testMainViewCanOpenAndUseCommandPalette() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.key(.controlP)), .none)
+        XCTAssertTrue(view.commandPalette.isPresented)
+        XCTAssertEqual(view.focusedControl, .commandPaletteButton)
+        XCTAssertEqual(view.handle(.key(.character("f"))), .none)
+        XCTAssertEqual(view.handle(.key(.enter)), .none)
+        XCTAssertEqual(view.focusedControl, .tree)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Command palette selected: Focus tree."))
+    }
+
+    func testMainViewCanStartWorkerWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 101, y: 18), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .workerButton)
+        XCTAssertEqual(view.workerManager.state, .running)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Worker started."))
+        view.workerManager.cancel()
+    }
+
+    func testWorkerManagerPublishesProgressAndCompletion() async throws {
+        let manager = WorkerManager()
+
+        manager.startDemoTask(steps: 2, interval: .milliseconds(1))
+        try await Task.sleep(for: .milliseconds(20))
+        let events = manager.drainEvents()
+
+        XCTAssertTrue(events.contains(WorkerEvent(state: .running, progress: 0, message: "Worker started.")))
+        XCTAssertTrue(events.contains(where: { $0.state == .running && $0.progress > 0 }))
+        XCTAssertTrue(events.contains(WorkerEvent(state: .completed, progress: 1, message: "Worker completed.")))
+    }
+
     func testMainViewLogsControlActions() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -1692,6 +1777,24 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[102, 8].character, "S")
         XCTAssertEqual(canvas[102, 9].character, "v")
         XCTAssertEqual(canvas[104, 9].character, "C")
+    }
+
+    func testDemoRendersCommandPaletteAndWorkerExamples() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 140, rows: 24))
+
+        XCTAssertEqual(canvas[103, 16].character, "C")
+        XCTAssertEqual(canvas[102, 18].character, "R")
+        XCTAssertEqual(canvas[110, 20].character, "W")
     }
 }
 

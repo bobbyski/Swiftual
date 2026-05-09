@@ -252,6 +252,8 @@ public struct MainViewContainer: Equatable, Sendable {
     public var richLog: RichLog
     public var dataTable: DataTable
     public var tree: Tree
+    public var commandPalette: CommandPalette
+    public var workerManager: WorkerManager
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -305,6 +307,17 @@ public struct MainViewContainer: Equatable, Sendable {
                 ])
             ]
         ),
+        commandPalette: CommandPalette = CommandPalette(
+            frame: Rect(x: 38, y: 5, width: 44, height: 10),
+            items: [
+                CommandPaletteItem("Quit", detail: "Exit the demo"),
+                CommandPaletteItem("Show modal", detail: "Open the modal overlay"),
+                CommandPaletteItem("Start worker", detail: "Run async progress"),
+                CommandPaletteItem("Cancel worker", detail: "Stop async progress"),
+                CommandPaletteItem("Focus tree", detail: "Move focus to tree")
+            ]
+        ),
+        workerManager: WorkerManager = WorkerManager(),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -323,6 +336,8 @@ public struct MainViewContainer: Equatable, Sendable {
         self.richLog = richLog
         self.dataTable = dataTable
         self.tree = tree
+        self.commandPalette = commandPalette
+        self.workerManager = workerManager
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -330,8 +345,17 @@ public struct MainViewContainer: Equatable, Sendable {
     }
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
+        if commandPalette.isPresented {
+            return handleCommandPalette(commandPalette.handle(event))
+        }
+
         if modal.isPresented {
             logModalCommand(modal.handle(event))
+            return .none
+        }
+
+        if event == .key(.controlP) {
+            presentCommandPalette()
             return .none
         }
 
@@ -395,6 +419,20 @@ public struct MainViewContainer: Equatable, Sendable {
         if case .mouse(let mouse) = event, tree.frame.contains(mouse.location) {
             focusedControl = .tree
             logTreeCommand(tree.handle(event))
+            return .none
+        }
+
+        let commandButton = Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, commandButton.frame.contains(mouse.location) {
+            focusedControl = .commandPaletteButton
+            presentCommandPalette()
+            return .none
+        }
+
+        let workerButton = Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, workerButton.frame.contains(mouse.location) {
+            focusedControl = .workerButton
+            toggleWorker()
             return .none
         }
 
@@ -475,6 +513,16 @@ public struct MainViewContainer: Equatable, Sendable {
             tree.isFocused = true
             logTreeCommand(tree.handle(event))
             return .none
+        case .commandPaletteButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                presentCommandPalette()
+            }
+            return .none
+        case .workerButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                toggleWorker()
+            }
+            return .none
         }
     }
 
@@ -494,6 +542,66 @@ public struct MainViewContainer: Equatable, Sendable {
             self.progressAnimationStartedAt = nil
             richLog.append("Progress animation finished: 100%.", style: TerminalStyle(foreground: .green, background: .black, bold: true))
         }
+    }
+
+    public mutating func updateWorkerEvents() {
+        for event in workerManager.drainEvents() {
+            let style: TerminalStyle
+            switch event.state {
+            case .running:
+                style = TerminalStyle(foreground: .brightWhite, background: .black)
+            case .completed:
+                style = TerminalStyle(foreground: .green, background: .black, bold: true)
+            case .cancelled:
+                style = TerminalStyle(foreground: .yellow, background: .black, bold: true)
+            case .failed:
+                style = TerminalStyle(foreground: .red, background: .black, bold: true)
+            case .idle:
+                style = TerminalStyle(foreground: .white, background: .black)
+            }
+            richLog.append(event.message, style: style)
+        }
+    }
+
+    private var workerButtonTitle: String {
+        workerManager.state == .running ? "Cancel job" : "Run worker"
+    }
+
+    private mutating func toggleWorker() {
+        if workerManager.state == .running {
+            workerManager.cancel()
+        } else {
+            workerManager.startDemoTask()
+        }
+        updateWorkerEvents()
+    }
+
+    private mutating func presentCommandPalette() {
+        commandPalette.present()
+        focusedControl = .commandPaletteButton
+        richLog.append("Command palette opened.", style: TerminalStyle(foreground: .cyan, background: .black))
+    }
+
+    private mutating func handleCommandPalette(_ command: CommandPaletteCommand) -> MenuCommand {
+        logCommandPaletteCommand(command)
+        guard case .selected(let title) = command else { return .none }
+        switch title {
+        case "Quit":
+            return .quit
+        case "Show modal":
+            modal.present()
+        case "Start worker":
+            workerManager.startDemoTask()
+            updateWorkerEvents()
+        case "Cancel worker":
+            workerManager.cancel()
+            updateWorkerEvents()
+        case "Focus tree":
+            focusedControl = .tree
+        default:
+            break
+        }
+        return .none
     }
 
     private mutating func logMenuCommand(_ command: MenuCommand) {
@@ -610,6 +718,21 @@ public struct MainViewContainer: Equatable, Sendable {
         }
     }
 
+    private mutating func logCommandPaletteCommand(_ command: CommandPaletteCommand) {
+        switch command {
+        case .dismissed:
+            richLog.append("Command palette dismissed.", style: TerminalStyle(foreground: .white, background: .black))
+        case .highlighted(let index):
+            richLog.append("Command palette highlighted option \(index).", style: TerminalStyle(foreground: .white, background: .black))
+        case .queryChanged(let query):
+            richLog.append("Command palette query: \(query).", style: TerminalStyle(foreground: .white, background: .black))
+        case .selected(let title):
+            richLog.append("Command palette selected: \(title).", style: TerminalStyle(foreground: .green, background: .black, bold: true))
+        case .none:
+            break
+        }
+    }
+
     public func render(size: TerminalSize) -> Canvas {
         var canvas = Canvas(size: size, fill: Cell(" ", style: backgroundStyle))
         canvas.fill(rect: Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1)), style: backgroundStyle)
@@ -680,8 +803,16 @@ public struct MainViewContainer: Equatable, Sendable {
         var tree = tree
         tree.isFocused = focusedControl == .tree
         tree.render(in: &canvas)
+        Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1), isFocused: focusedControl == .commandPaletteButton).render(in: &canvas)
+        Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1), isFocused: focusedControl == .workerButton).render(in: &canvas)
+        ProgressBar(
+            frame: Rect(x: 100, y: 20, width: 30, height: 1),
+            value: workerManager.state == .idle ? 0 : workerManager.progress,
+            label: "Worker"
+        ).render(in: &canvas)
         richLog.render(in: &canvas)
         modal.render(in: &canvas)
+        commandPalette.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
@@ -731,6 +862,8 @@ public enum MainViewFocus: Equatable, Sendable {
     case progressButton
     case dataTable
     case tree
+    case commandPaletteButton
+    case workerButton
 
     var next: MainViewFocus {
         switch self {
@@ -755,6 +888,10 @@ public enum MainViewFocus: Equatable, Sendable {
         case .dataTable:
             return .tree
         case .tree:
+            return .commandPaletteButton
+        case .commandPaletteButton:
+            return .workerButton
+        case .workerButton:
             return .menuBar
         }
     }

@@ -23,6 +23,8 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Rich Log](rich-log.md)
 - [Data Table](data-table.md)
 - [Tree](tree.md)
+- [Command Palette](command-palette.md)
+- [Worker-Backed Async Task Demo](workers.md)
 - [Input Events](input-events.md)
 - [Styling](styling.md)
 - [Canvas And Rendering](canvas-rendering.md)
@@ -32,8 +34,8 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 
 These pages should be added as each feature lands:
 
-- Command palette
-- Worker-backed async task demo
+- Optional TCSS layer
+- Textual-inspired demo duplicates
 
 ## Documentation Rule
 

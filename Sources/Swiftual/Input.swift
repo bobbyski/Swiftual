@@ -11,6 +11,7 @@ public enum Key: Equatable, Sendable {
     case left
     case right
     case controlC
+    case controlP
     case unknown(String)
 }
 
@@ -74,6 +75,8 @@ public struct InputParser: Sendable {
         switch text {
         case "\u{3}":
             return [.key(.controlC)]
+        case "\u{10}":
+            return [.key(.controlP)]
         case "\r", "\n":
             return [.key(.enter)]
         case "\u{1B}":

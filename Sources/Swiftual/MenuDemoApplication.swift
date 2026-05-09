@@ -49,6 +49,7 @@ public final class MenuDemoApplication: @unchecked Sendable {
                 }
             }
             view.updateProgressAnimation()
+            view.updateWorkerEvents()
             try render()
         }
     }
