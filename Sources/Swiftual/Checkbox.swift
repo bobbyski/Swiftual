@@ -7,7 +7,9 @@ public struct Checkbox: CanvasRenderable, Equatable, Sendable {
     public var isFocused: Bool
     public var isEnabled: Bool
     public var style: TerminalStyle
+    public var checkedStyle: TerminalStyle
     public var focusedStyle: TerminalStyle
+    public var focusedCheckedStyle: TerminalStyle
     public var disabledStyle: TerminalStyle
 
     public init(
@@ -17,7 +19,9 @@ public struct Checkbox: CanvasRenderable, Equatable, Sendable {
         isFocused: Bool = false,
         isEnabled: Bool = true,
         style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack),
+        checkedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack),
         focusedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
+        focusedCheckedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
         disabledStyle: TerminalStyle = TerminalStyle(foreground: .white, background: .brightBlack)
     ) {
         self.title = title
@@ -26,7 +30,9 @@ public struct Checkbox: CanvasRenderable, Equatable, Sendable {
         self.isFocused = isFocused
         self.isEnabled = isEnabled
         self.style = style
+        self.checkedStyle = checkedStyle
         self.focusedStyle = focusedStyle
+        self.focusedCheckedStyle = focusedCheckedStyle
         self.disabledStyle = disabledStyle
     }
 
@@ -56,8 +62,12 @@ public struct Checkbox: CanvasRenderable, Equatable, Sendable {
         let currentStyle: TerminalStyle
         if !isEnabled {
             currentStyle = disabledStyle
+        } else if isFocused, isChecked {
+            currentStyle = focusedCheckedStyle
         } else if isFocused {
             currentStyle = focusedStyle
+        } else if isChecked {
+            currentStyle = checkedStyle
         } else {
             currentStyle = style
         }

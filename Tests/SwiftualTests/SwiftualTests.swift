@@ -1658,6 +1658,82 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.baseDemo.demoButtons[0].frame.height, 1)
     }
 
+    func testTSSDemoAppliesTCSSAcrossRemainingControls() {
+        let stylesheet = TSSDemoStylesheet(
+            fileName: "all-controls.tcss",
+            source: """
+            Label { background: red; color: white; }
+            Label.centered { background: cyan; color: black; text-align: right; }
+            Vertical { background: green; color: black; }
+            Horizontal { background: yellow; color: black; }
+            TextInput { background: ansi(52); color: bright-white; width: 30; }
+            TextInput:focus { background: blue; color: bright-white; }
+            Placeholder { color: bright-black; }
+            Cursor { background: bright-white; color: black; }
+            Checkbox:checked { background: green; color: black; }
+            Switch:on { background: green; color: black; }
+            Select { background: red; color: white; }
+            Select:open { background: bright-white; color: black; }
+            Option:selected { background: blue; color: bright-white; }
+            ScrollView { background: black; color: cyan; width: 28; height: 6; }
+            ScrollContent { background: black; color: yellow; }
+            ScrollBar { background: bright-black; color: white; }
+            ScrollBarThumb { background: magenta; color: white; }
+            Modal { background: ansi(53); color: bright-white; width: 40; height: 9; }
+            ModalTitle { background: magenta; color: yellow; }
+            ModalButton:focus { background: cyan; color: black; }
+            ProgressBar { background: black; color: white; width: 24; }
+            ProgressBar:complete { background: green; color: black; }
+            ProgressBarText { color: yellow; }
+            RichLog { background: black; color: cyan; }
+            RichLogTitle { background: cyan; color: black; }
+            DataTable { background: ansi(17); color: bright-white; }
+            Header { background: cyan; color: black; }
+            Row:alternate { background: ansi(18); color: bright-white; }
+            Row:selected { background: blue; color: bright-white; }
+            Tree { background: black; color: bright-white; width: 32; height: 8; }
+            Tree:selected { background: yellow; color: black; }
+            TreeBranch { color: cyan; }
+            CommandPalette { background: black; color: bright-white; width: 48; }
+            CommandPaletteTitle { background: magenta; color: yellow; }
+            CommandPaletteInput { background: bright-black; color: cyan; }
+            CommandPaletteItem:selected { background: green; color: black; }
+            WorkerProgress { background: black; color: white; }
+            WorkerProgress:complete { background: cyan; color: black; }
+            WorkerProgressText { color: yellow; }
+            """
+        )
+        let view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo(), stylesheets: [stylesheet])
+
+        XCTAssertEqual(view.baseDemo.demoLabels[0].style.background, .red)
+        XCTAssertEqual(view.baseDemo.demoLabels[1].style.background, .cyan)
+        XCTAssertEqual(view.baseDemo.demoLabels[1].alignment, .right)
+        XCTAssertEqual(view.baseDemo.verticalFillStyle.background, .green)
+        XCTAssertEqual(view.baseDemo.horizontalFillStyle.background, .yellow)
+        XCTAssertEqual(view.baseDemo.textInput.frame.width, 30)
+        XCTAssertEqual(view.baseDemo.textInput.style.background, .ansi(52))
+        XCTAssertEqual(view.baseDemo.textInput.focusedStyle.background, .blue)
+        XCTAssertEqual(view.baseDemo.checkbox.checkedStyle.background, .green)
+        XCTAssertEqual(view.baseDemo.toggleSwitch.onStyle.background, .green)
+        XCTAssertEqual(view.baseDemo.select.style.background, .red)
+        XCTAssertEqual(view.baseDemo.select.openStyle.background, .brightWhite)
+        XCTAssertEqual(view.baseDemo.select.highlightedStyle.background, .blue)
+        XCTAssertEqual(view.baseDemo.scrollView.frame.width, 28)
+        XCTAssertEqual(view.baseDemo.scrollView.thumbStyle.background, .magenta)
+        XCTAssertEqual(view.baseDemo.modal.frame.width, 40)
+        XCTAssertEqual(view.baseDemo.modal.titleStyle.background, .magenta)
+        XCTAssertEqual(view.baseDemo.progressBar.frame.width, 24)
+        XCTAssertEqual(view.baseDemo.progressBar.completedStyle.background, .green)
+        XCTAssertEqual(view.baseDemo.richLog.titleStyle.background, .cyan)
+        XCTAssertEqual(view.baseDemo.dataTable.headerStyle.background, .cyan)
+        XCTAssertEqual(view.baseDemo.dataTable.selectedRowStyle.background, .blue)
+        XCTAssertEqual(view.baseDemo.tree.frame.width, 32)
+        XCTAssertEqual(view.baseDemo.tree.selectedStyle.background, .yellow)
+        XCTAssertEqual(view.baseDemo.commandPalette.frame.width, 48)
+        XCTAssertEqual(view.baseDemo.commandPalette.titleStyle.background, .magenta)
+        XCTAssertEqual(view.baseDemo.workerProgressCompletedStyle.background, .cyan)
+    }
+
     func testSyntaxHighlightedScrollViewUsesRichSwiftSyntaxColors() {
         var canvas = Canvas(size: TerminalSize(columns: 40, rows: 4))
         let preview = SyntaxHighlightedScrollView(

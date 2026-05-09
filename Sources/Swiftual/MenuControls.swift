@@ -285,6 +285,17 @@ public struct MainViewContainer: Equatable, Sendable {
     public var logSplitIsDragging: Bool
     public var demoButtons: [Button]
     public var demoLabels: [Label]
+    public var verticalFillStyle: TerminalStyle
+    public var verticalTitleStyle: TerminalStyle
+    public var verticalChildLabelStyle: TerminalStyle
+    public var verticalChildButtonStyle: TerminalStyle
+    public var horizontalFillStyle: TerminalStyle
+    public var horizontalLabelStyle: TerminalStyle
+    public var horizontalButtonStyle: TerminalStyle
+    public var horizontalFocusedButtonStyle: TerminalStyle
+    public var workerProgressTrackStyle: TerminalStyle
+    public var workerProgressCompletedStyle: TerminalStyle
+    public var workerProgressTextStyle: TerminalStyle
     public var backgroundStyle: TerminalStyle
     public var focusedControl: MainViewFocus
 
@@ -350,6 +361,17 @@ public struct MainViewContainer: Equatable, Sendable {
         splitClampSwitch: Switch = Switch("Clamp log", frame: Rect(x: 116, y: 16, width: 18, height: 1), isOn: false),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
+        verticalFillStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        verticalTitleStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        verticalChildLabelStyle: TerminalStyle = TerminalStyle(foreground: .cyan, background: .black),
+        verticalChildButtonStyle: TerminalStyle = Button.defaultStyle,
+        horizontalFillStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        horizontalLabelStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        horizontalButtonStyle: TerminalStyle = Button.defaultStyle,
+        horizontalFocusedButtonStyle: TerminalStyle = Button.defaultFocusedStyle,
+        workerProgressTrackStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        workerProgressCompletedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .green, bold: true),
+        workerProgressTextStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, bold: true),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
     ) {
         self.menuBar = menuBar
@@ -373,6 +395,17 @@ public struct MainViewContainer: Equatable, Sendable {
         self.logSplitIsDragging = false
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
+        self.verticalFillStyle = verticalFillStyle
+        self.verticalTitleStyle = verticalTitleStyle
+        self.verticalChildLabelStyle = verticalChildLabelStyle
+        self.verticalChildButtonStyle = verticalChildButtonStyle
+        self.horizontalFillStyle = horizontalFillStyle
+        self.horizontalLabelStyle = horizontalLabelStyle
+        self.horizontalButtonStyle = horizontalButtonStyle
+        self.horizontalFocusedButtonStyle = horizontalFocusedButtonStyle
+        self.workerProgressTrackStyle = workerProgressTrackStyle
+        self.workerProgressCompletedStyle = workerProgressCompletedStyle
+        self.workerProgressTextStyle = workerProgressTextStyle
         self.backgroundStyle = backgroundStyle
         self.focusedControl = .menuBar
     }
@@ -808,11 +841,11 @@ public struct MainViewContainer: Equatable, Sendable {
         let vertical = Vertical(
             frame: Rect(x: 2, y: 14, width: 30, height: 5),
             spacing: 1,
-            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            fillStyle: verticalFillStyle,
             children: [
-                AnyCanvasRenderable(Label("Vertical stack", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black), alignment: .center)),
-                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: TerminalStyle(foreground: .cyan, background: .black))),
-                AnyCanvasRenderable(Button("Child button", frame: Rect(x: 0, y: 0, width: 16, height: 1)))
+                AnyCanvasRenderable(Label("Vertical stack", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: verticalTitleStyle, alignment: .center)),
+                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: verticalChildLabelStyle)),
+                AnyCanvasRenderable(Button("Child button", frame: Rect(x: 0, y: 0, width: 16, height: 1), style: verticalChildButtonStyle))
             ]
         )
         vertical.render(in: &canvas)
@@ -820,11 +853,11 @@ public struct MainViewContainer: Equatable, Sendable {
         let horizontal = Horizontal(
             frame: Rect(x: 36, y: 14, width: 36, height: 3),
             spacing: 2,
-            fillStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            fillStyle: horizontalFillStyle,
             children: [
-                AnyCanvasRenderable(Label("Horizontal", frame: Rect(x: 0, y: 0, width: 12, height: 1), style: TerminalStyle(foreground: .brightWhite, background: .black))),
-                AnyCanvasRenderable(Button("One", frame: Rect(x: 0, y: 0, width: 8, height: 1))),
-                AnyCanvasRenderable(Button("Two", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true))
+                AnyCanvasRenderable(Label("Horizontal", frame: Rect(x: 0, y: 0, width: 12, height: 1), style: horizontalLabelStyle)),
+                AnyCanvasRenderable(Button("One", frame: Rect(x: 0, y: 0, width: 8, height: 1), style: horizontalButtonStyle)),
+                AnyCanvasRenderable(Button("Two", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true, style: horizontalButtonStyle, focusedStyle: horizontalFocusedButtonStyle))
             ]
         )
         horizontal.render(in: &canvas)
@@ -865,7 +898,10 @@ public struct MainViewContainer: Equatable, Sendable {
         ProgressBar(
             frame: Rect(x: 100, y: 20, width: 30, height: 1),
             value: workerManager.state == .idle ? 0 : workerManager.progress,
-            label: "Worker"
+            label: "Worker",
+            trackStyle: workerProgressTrackStyle,
+            completedStyle: workerProgressCompletedStyle,
+            textStyle: workerProgressTextStyle
         ).render(in: &canvas)
         let logSplit = logSplitView(for: size)
         logSplit.render(in: &canvas)
