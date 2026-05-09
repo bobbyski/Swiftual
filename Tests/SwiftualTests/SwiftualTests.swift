@@ -414,6 +414,58 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(input.cursorIndex, 4)
     }
 
+    func testCheckboxRendersUncheckedState() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let checkbox = Checkbox("Agree", frame: Rect(x: 2, y: 1, width: 12, height: 1))
+
+        checkbox.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "[")
+        XCTAssertEqual(canvas[3, 1].character, " ")
+        XCTAssertEqual(canvas[4, 1].character, "]")
+        XCTAssertEqual(canvas[6, 1].character, "A")
+    }
+
+    func testCheckboxRendersCheckedState() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let checkbox = Checkbox("Agree", frame: Rect(x: 2, y: 1, width: 12, height: 1), isChecked: true)
+
+        checkbox.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "x")
+    }
+
+    func testCheckboxTogglesWithKeyboardWhenFocused() {
+        var checkbox = Checkbox("Agree", frame: Rect(x: 0, y: 0, width: 12, height: 1), isFocused: true)
+
+        XCTAssertEqual(checkbox.handle(.key(.character(" "))), .changed(true))
+        XCTAssertTrue(checkbox.isChecked)
+        XCTAssertEqual(checkbox.handle(.key(.enter)), .changed(false))
+        XCTAssertFalse(checkbox.isChecked)
+    }
+
+    func testCheckboxIgnoresKeyboardWhenUnfocused() {
+        var checkbox = Checkbox("Agree", frame: Rect(x: 0, y: 0, width: 12, height: 1), isFocused: false)
+
+        XCTAssertEqual(checkbox.handle(.key(.character(" "))), .none)
+        XCTAssertFalse(checkbox.isChecked)
+    }
+
+    func testCheckboxTogglesWithMouseInsideFrame() {
+        var checkbox = Checkbox("Agree", frame: Rect(x: 2, y: 1, width: 12, height: 1))
+
+        XCTAssertEqual(checkbox.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 1), pressed: true))), .changed(true))
+        XCTAssertTrue(checkbox.isChecked)
+        XCTAssertTrue(checkbox.isFocused)
+    }
+
+    func testCheckboxDisabledDoesNotToggle() {
+        var checkbox = Checkbox("Agree", frame: Rect(x: 0, y: 0, width: 12, height: 1), isFocused: true, isEnabled: false)
+
+        XCTAssertEqual(checkbox.handle(.key(.enter)), .none)
+        XCTAssertFalse(checkbox.isChecked)
+    }
+
     func testMainViewCanFocusAndActivateButtonWithKeyboard() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -461,6 +513,42 @@ final class SwiftualTests: XCTestCase {
 
         XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 20, y: 6), pressed: true))), .none)
         XCTAssertEqual(view.focusedControl, .textInput)
+    }
+
+    func testMainViewCanFocusAndToggleCheckboxWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        XCTAssertEqual(view.focusedControl, .checkbox)
+        XCTAssertTrue(view.checkbox.isChecked)
+        XCTAssertEqual(view.handle(.key(.character(" "))), .none)
+        XCTAssertFalse(view.checkbox.isChecked)
+    }
+
+    func testMainViewCanFocusAndToggleCheckboxWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 47, y: 6), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .checkbox)
+        XCTAssertFalse(view.checkbox.isChecked)
     }
 
     func testMainViewCanActivateButtonWithMouse() {
@@ -573,6 +661,24 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[19, 6].character, "S")
         XCTAssertEqual(canvas[19, 6].style.background, .black)
         XCTAssertEqual(canvas[18, 6].style.background, .black)
+    }
+
+    func testDemoRendersCheckboxExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 80, rows: 24))
+
+        XCTAssertEqual(canvas[46, 6].character, "[")
+        XCTAssertEqual(canvas[47, 6].character, "x")
+        XCTAssertEqual(canvas[50, 6].character, "E")
     }
 }
 
