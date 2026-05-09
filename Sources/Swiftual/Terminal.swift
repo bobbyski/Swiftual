@@ -139,7 +139,9 @@ public struct ANSITerminalBackend: TerminalBackend {
         var output = "\u{001B}[H"
         var currentStyle = TerminalStyle.plain
 
-        for row in canvas.rows() {
+        let rows = canvas.rows()
+        for rowIndex in rows.indices {
+            let row = rows[rowIndex]
             for cell in row {
                 if cell.style != currentStyle {
                     output += "\u{001B}[0m"
@@ -150,7 +152,9 @@ public struct ANSITerminalBackend: TerminalBackend {
             }
             output += "\u{001B}[0m"
             currentStyle = .plain
-            output += "\r\n"
+            if rowIndex < rows.count - 1 {
+                output += "\r\n"
+            }
         }
 
         try device.writeOutput(output)

@@ -54,9 +54,30 @@ final class SwiftualTests: XCTestCase {
         )
 
         let canvas = view.render(size: TerminalSize(columns: 20, rows: 6))
-        XCTAssertEqual(canvas[0, 0].style.background, .brightWhite)
+        XCTAssertEqual(canvas[0, 0].style.background, .blue)
         XCTAssertEqual(canvas[8, 0].style.background, .blue)
         XCTAssertEqual(canvas[0, 1].style.background, .brightBlack)
+    }
+
+    func testFocusedMenuMatchesMenuBarUntilOpened() {
+        var menuBar = MenuBar(
+            menus: [
+                Menu("File", items: [
+                    MenuItem("Quit") {}
+                ])
+            ]
+        )
+        var canvas = Canvas(size: TerminalSize(columns: 20, rows: 4))
+
+        menuBar.render(in: &canvas)
+        XCTAssertEqual(canvas[1, 0].style.foreground, .brightWhite)
+        XCTAssertEqual(canvas[1, 0].style.background, .blue)
+
+        _ = menuBar.handle(.key(.down))
+        canvas = Canvas(size: TerminalSize(columns: 20, rows: 4))
+        menuBar.render(in: &canvas)
+        XCTAssertEqual(canvas[1, 0].style.foreground, .blue)
+        XCTAssertEqual(canvas[1, 0].style.background, .brightWhite)
     }
 
     func testANSIBackendRendersThroughTerminalDeviceProtocol() throws {
@@ -70,6 +91,18 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(device.output.contains("\u{001B}[H"))
         XCTAssertTrue(device.output.contains("Hi"))
         XCTAssertTrue(device.output.contains("\u{001B}[37;44m"))
+    }
+
+    func testANSIBackendDoesNotScrollLastRenderedRow() throws {
+        let device = VirtualTerminalDevice(size: TerminalSize(columns: 4, rows: 2))
+        let backend = ANSITerminalBackend()
+        var canvas = Canvas(size: device.size())
+        canvas.drawText("Menu", at: Point(x: 0, y: 0), style: TerminalStyle(foreground: .white, background: .blue))
+        canvas.drawText("Body", at: Point(x: 0, y: 1), style: TerminalStyle(foreground: .white, background: .brightBlack))
+
+        try backend.render(canvas, device: device)
+
+        XCTAssertFalse(device.output.hasSuffix("\r\n"))
     }
 }
 

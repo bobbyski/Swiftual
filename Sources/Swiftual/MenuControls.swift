@@ -103,7 +103,7 @@ public struct MenuBar: Equatable, Sendable {
         var column = 0
         for index in menus.indices {
             let title = " \(menus[index].title) "
-            let style = index == selectedMenuIndex ? selectedBarStyle : barStyle
+            let style = openedMenuIndex == index ? selectedBarStyle : barStyle
             canvas.drawText(title, at: Point(x: column, y: 0), style: style)
             column += title.count
         }
