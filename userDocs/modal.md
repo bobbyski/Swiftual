@@ -26,6 +26,7 @@ Call `present()` to show the modal and `dismiss()` to hide it.
 - `buttons`: ordered action buttons.
 - `selectedButtonIndex`: currently focused button.
 - `isPresented`: whether the modal renders and handles input.
+- `drawsOverlayBackground`: whether the modal repaints the whole canvas behind the panel. Defaults to `false`, so the existing screen remains visible around the modal.
 - `overlayStyle`: full-screen style behind the panel.
 - `panelStyle`: modal body style.
 - `titleStyle`: title row style.
@@ -48,7 +49,8 @@ Call `present()` to show the modal and `dismiss()` to hide it.
 
 ## Rendering Behavior
 
-- The overlay fills the full canvas while the modal is presented.
+- By default, the existing screen remains visible around the modal panel.
+- If `drawsOverlayBackground` is true, the overlay fills the full canvas while the modal is presented.
 - The panel fills `frame` using `panelStyle`.
 - The title row uses `titleStyle` and centers the title within the frame.
 - The message is clipped to the inner panel width.
@@ -61,7 +63,9 @@ The demo includes a `Show modal` button in the main view. Press Tab until the bu
 ## Test Checklist
 
 - Modal renders only when `isPresented` is true.
-- Overlay, title row, message, and buttons render with the expected styles.
+- Title row, message, and buttons render with the expected styles.
+- Background outside the panel is preserved by default.
+- Overlay background can be enabled explicitly.
 - Escape dismisses the modal.
 - Keyboard navigation changes the selected button.
 - Enter and Space select the focused enabled button.

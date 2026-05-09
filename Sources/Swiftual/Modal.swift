@@ -17,6 +17,7 @@ public struct Modal: CanvasRenderable, Equatable, Sendable {
     public var buttons: [ModalButton]
     public var selectedButtonIndex: Int
     public var isPresented: Bool
+    public var drawsOverlayBackground: Bool
     public var overlayStyle: TerminalStyle
     public var panelStyle: TerminalStyle
     public var titleStyle: TerminalStyle
@@ -31,6 +32,7 @@ public struct Modal: CanvasRenderable, Equatable, Sendable {
         buttons: [ModalButton] = [ModalButton("OK")],
         selectedButtonIndex: Int = 0,
         isPresented: Bool = false,
+        drawsOverlayBackground: Bool = false,
         overlayStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack),
         panelStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         titleStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
@@ -45,6 +47,7 @@ public struct Modal: CanvasRenderable, Equatable, Sendable {
         let fallbackIndex = buttons.indices.first ?? 0
         self.selectedButtonIndex = buttons.indices.contains(selectedButtonIndex) ? selectedButtonIndex : fallbackIndex
         self.isPresented = isPresented
+        self.drawsOverlayBackground = drawsOverlayBackground
         self.overlayStyle = overlayStyle
         self.panelStyle = panelStyle
         self.titleStyle = titleStyle
@@ -102,7 +105,9 @@ public struct Modal: CanvasRenderable, Equatable, Sendable {
 
     public func render(in canvas: inout Canvas) {
         guard isPresented else { return }
-        canvas.fill(rect: Rect(x: 0, y: 0, width: canvas.size.columns, height: canvas.size.rows), style: overlayStyle)
+        if drawsOverlayBackground {
+            canvas.fill(rect: Rect(x: 0, y: 0, width: canvas.size.columns, height: canvas.size.rows), style: overlayStyle)
+        }
         canvas.fill(rect: frame, style: panelStyle)
 
         canvas.fill(rect: Rect(x: frame.x, y: frame.y, width: frame.width, height: 1), style: titleStyle)

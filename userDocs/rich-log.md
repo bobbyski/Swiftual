@@ -47,7 +47,7 @@ log.append(
 
 ## Demo Coverage
 
-The demo renders a `Rich log` panel at the bottom of the screen. Interacting with controls appends messages:
+The demo renders a four-row `Rich log` panel at the bottom of the screen. Interacting with controls appends messages:
 
 - Menu opens and selections.
 - Button activation.

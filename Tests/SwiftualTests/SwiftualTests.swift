@@ -760,6 +760,27 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[14, 11].character, "O")
     }
 
+    func testModalPreservesBackgroundOutsidePanelByDefault() {
+        var canvas = Canvas(size: TerminalSize(columns: 20, rows: 8), fill: Cell(".", style: TerminalStyle(foreground: .yellow, background: .blue)))
+        let modal = Modal(frame: Rect(x: 4, y: 2, width: 10, height: 4), title: "Hi", message: "Body", isPresented: true)
+
+        modal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 0].character, ".")
+        XCTAssertEqual(canvas[0, 0].style.background, .blue)
+        XCTAssertEqual(canvas[4, 2].style.background, .blue)
+    }
+
+    func testModalCanDrawOverlayBackgroundWhenRequested() {
+        var canvas = Canvas(size: TerminalSize(columns: 20, rows: 8), fill: Cell(".", style: TerminalStyle(foreground: .yellow, background: .blue)))
+        let modal = Modal(frame: Rect(x: 4, y: 2, width: 10, height: 4), title: "Hi", message: "Body", isPresented: true, drawsOverlayBackground: true)
+
+        modal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 0].character, " ")
+        XCTAssertEqual(canvas[0, 0].style.background, .brightBlack)
+    }
+
     func testModalEscapeDismisses() {
         var modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
 
@@ -1400,9 +1421,9 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
 
-        XCTAssertEqual(canvas[3, 21].character, "R")
-        XCTAssertEqual(canvas[2, 22].character, "R")
-        XCTAssertEqual(canvas[7, 22].character, ":")
+        XCTAssertEqual(canvas[3, 20].character, "R")
+        XCTAssertEqual(canvas[2, 21].character, "R")
+        XCTAssertEqual(canvas[7, 21].character, ":")
     }
 }
 

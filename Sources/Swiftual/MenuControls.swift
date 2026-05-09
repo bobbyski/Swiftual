@@ -268,7 +268,7 @@ public struct MainViewContainer: Equatable, Sendable {
         progressAnimationStartedAt: Date? = nil,
         progressAnimationDuration: TimeInterval = 5,
         richLog: RichLog = RichLog(
-            frame: Rect(x: 2, y: 21, width: 96, height: 3),
+            frame: Rect(x: 2, y: 20, width: 96, height: 4),
             entries: [
                 RichLogEntry("Ready: interact with controls to populate the log.", style: TerminalStyle(foreground: .brightWhite, background: .black))
             ]
