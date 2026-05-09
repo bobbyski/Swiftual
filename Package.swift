@@ -15,6 +15,10 @@ let package = Package(
         .executable(
             name: "swiftual-demo",
             targets: ["SwiftualDemo"]
+        ),
+        .executable(
+            name: "swiftual-tss-demo",
+            targets: ["TSSDemo"]
         )
     ],
     dependencies: [
@@ -27,6 +31,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "SwiftualDemo",
+            dependencies: ["Swiftual"]
+        ),
+        .executableTarget(
+            name: "TSSDemo",
             dependencies: ["Swiftual"]
         ),
         .testTarget(

@@ -1401,6 +1401,31 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(events.contains(WorkerEvent(state: .completed, progress: 1, message: "Worker completed.")))
     }
 
+    func testTSSDemoRendersRightSideStylesheetPanel() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+
+        let canvas = view.render(size: TerminalSize(columns: 180, rows: 32))
+
+        XCTAssertEqual(canvas[128, 2].character, "T")
+        XCTAssertEqual(canvas[129, 4].character, "0")
+        XCTAssertEqual(canvas[128, 7].character, "/")
+        XCTAssertEqual(canvas[126, 1].style.background, .blue)
+    }
+
+    func testTSSDemoSelectorSwitchesDisplayedStylesheetText() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+        let size = TerminalSize(columns: 180, rows: 32)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 129, y: 4), pressed: true)), terminalSize: size), .none)
+        XCTAssertTrue(view.styleSelector.isOpen)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 129, y: 6), pressed: true)), terminalSize: size), .none)
+
+        XCTAssertEqual(view.selectedStylesheetIndex, 1)
+        XCTAssertFalse(view.styleSelector.isOpen)
+        XCTAssertTrue(view.sourceView.content.contains("/* First parser target: Button and Label. */"))
+        XCTAssertTrue(view.baseDemo.richLog.entries.map(\.message).contains("TCSS demo selected: 01-buttons-labels.tcss."))
+    }
+
     func testMainViewLogsControlActions() {
         var view = MainViewContainer(
             menuBar: MenuBar(
