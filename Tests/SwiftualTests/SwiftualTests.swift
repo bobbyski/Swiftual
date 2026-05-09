@@ -658,6 +658,87 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(scrollView.scrollOffset, 0)
     }
 
+    func testProgressBarRendersDeterminateFill() {
+        var canvas = Canvas(size: TerminalSize(columns: 20, rows: 3))
+        let progressBar = ProgressBar(frame: Rect(x: 2, y: 1, width: 10, height: 1), value: 0.4, showPercentage: false)
+
+        progressBar.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].style.background, .green)
+        XCTAssertEqual(canvas[5, 1].style.background, .green)
+        XCTAssertEqual(canvas[6, 1].style.background, .black)
+    }
+
+    func testProgressBarClampsValuesToRange() {
+        XCTAssertEqual(ProgressBar(frame: Rect(x: 0, y: 0, width: 10, height: 1), value: -10, range: 0...100).fractionComplete, 0)
+        XCTAssertEqual(ProgressBar(frame: Rect(x: 0, y: 0, width: 10, height: 1), value: 150, range: 0...100).fractionComplete, 1)
+        XCTAssertEqual(ProgressBar(frame: Rect(x: 0, y: 0, width: 10, height: 1), value: 25, range: 0...100).fractionComplete, 0.25)
+    }
+
+    func testProgressBarRendersLabelAndPercentage() {
+        var canvas = Canvas(size: TerminalSize(columns: 30, rows: 3))
+        let progressBar = ProgressBar(frame: Rect(x: 2, y: 1, width: 20, height: 1), value: 0.65, label: "Load")
+
+        progressBar.render(in: &canvas)
+
+        XCTAssertEqual(canvas[8, 1].character, "L")
+        XCTAssertEqual(canvas[13, 1].character, "6")
+        XCTAssertEqual(canvas[15, 1].character, "%")
+        XCTAssertEqual(canvas[8, 1].style.background, .blue)
+    }
+
+    func testProgressBarRendersIndeterminatePulse() {
+        var canvas = Canvas(size: TerminalSize(columns: 20, rows: 3))
+        let progressBar = ProgressBar(frame: Rect(x: 2, y: 1, width: 8, height: 1), value: nil, pulseOffset: 4)
+
+        progressBar.render(in: &canvas)
+
+        XCTAssertEqual(canvas[4, 1].style.background, .cyan)
+        XCTAssertEqual(canvas[5, 1].style.background, .cyan)
+        XCTAssertEqual(canvas[6, 1].style.background, .black)
+    }
+
+    func testModalRendersWhenPresented() {
+        var canvas = Canvas(size: TerminalSize(columns: 80, rows: 24))
+        let modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
+
+        modal.render(in: &canvas)
+
+        XCTAssertEqual(canvas[10, 5].style.background, .blue)
+        XCTAssertEqual(canvas[22, 5].character, "T")
+        XCTAssertEqual(canvas[12, 7].character, "H")
+        XCTAssertEqual(canvas[14, 11].character, "O")
+    }
+
+    func testModalEscapeDismisses() {
+        var modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
+
+        XCTAssertEqual(modal.handle(.key(.escape)), .dismissed)
+        XCTAssertFalse(modal.isPresented)
+    }
+
+    func testModalKeyboardSelectsFocusedButton() {
+        var modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", buttons: [ModalButton("OK"), ModalButton("Cancel")], isPresented: true)
+
+        XCTAssertEqual(modal.handle(.key(.right)), .highlighted(1))
+        XCTAssertEqual(modal.handle(.key(.enter)), .selected(1, "Cancel"))
+        XCTAssertFalse(modal.isPresented)
+    }
+
+    func testModalMouseSelectsButton() {
+        var modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", buttons: [ModalButton("OK"), ModalButton("Cancel")], isPresented: true)
+
+        XCTAssertEqual(modal.handle(.mouse(MouseEvent(button: .left, location: Point(x: 20, y: 11), pressed: true))), .selected(1, "Cancel"))
+        XCTAssertFalse(modal.isPresented)
+    }
+
+    func testModalClickOutsideDismisses() {
+        var modal = Modal(frame: Rect(x: 10, y: 5, width: 30, height: 8), title: "Title", message: "Hello", isPresented: true)
+
+        XCTAssertEqual(modal.handle(.mouse(MouseEvent(button: .left, location: Point(x: 2, y: 2), pressed: true))), .dismissed)
+        XCTAssertFalse(modal.isPresented)
+    }
+
     func testScrollViewRendersScrollbarWhenContentOverflows() {
         var canvas = Canvas(size: TerminalSize(columns: 30, rows: 8))
         let scrollView = ScrollView(frame: Rect(x: 2, y: 1, width: 12, height: 3), content: ["One", "Two", "Three", "Four", "Five"])
@@ -865,6 +946,56 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.scrollView.scrollOffset, 1)
     }
 
+    func testMainViewCanPresentModalWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<7 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .modalButton)
+        XCTAssertEqual(view.handle(.key(.enter)), .none)
+        XCTAssertTrue(view.modal.isPresented)
+    }
+
+    func testMainViewCanPresentModalWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 38, y: 18), pressed: true))), .none)
+
+        XCTAssertTrue(view.modal.isPresented)
+        XCTAssertEqual(view.focusedControl, .modalButton)
+    }
+
+    func testMainViewRoutesEventsToPresentedModal() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+        view.modal.present()
+
+        XCTAssertEqual(view.handle(.key(.escape)), .none)
+        XCTAssertFalse(view.modal.isPresented)
+    }
+
     func testMainViewCanActivateButtonWithMouse() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -1048,6 +1179,41 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[74, 14].character, "S")
         XCTAssertEqual(canvas[85, 14].character, "1")
         XCTAssertEqual(canvas[97, 14].style.background, .blue)
+    }
+
+    func testDemoRendersModalButtonExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[38, 18].character, "S")
+        XCTAssertEqual(canvas[43, 18].character, "m")
+    }
+
+    func testDemoRendersProgressBarExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
+
+        XCTAssertEqual(canvas[58, 18].character, "L")
+        XCTAssertEqual(canvas[63, 18].character, "6")
+        XCTAssertEqual(canvas[65, 18].character, "%")
     }
 }
 

@@ -245,6 +245,8 @@ public struct MainViewContainer: Equatable, Sendable {
     public var toggleSwitch: Switch
     public var select: Select
     public var scrollView: ScrollView
+    public var modal: Modal
+    public var progressBar: ProgressBar
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -258,6 +260,8 @@ public struct MainViewContainer: Equatable, Sendable {
         toggleSwitch: Switch = Switch("Power", frame: Rect(x: 68, y: 6, width: 14, height: 1), isOn: true),
         select: Select = Select(frame: Rect(x: 84, y: 6, width: 14, height: 1), options: [SelectOption("Alpha"), SelectOption("Beta"), SelectOption("Gamma")]),
         scrollView: ScrollView = ScrollView(frame: Rect(x: 74, y: 14, width: 24, height: 5), content: (1...12).map { "Scroll row \($0)" }),
+        modal: Modal = Modal(frame: Rect(x: 24, y: 8, width: 36, height: 8), title: "Swiftual", message: "Modal screen example", buttons: [ModalButton("OK"), ModalButton("Cancel")]),
+        progressBar: ProgressBar = ProgressBar(frame: Rect(x: 52, y: 18, width: 20, height: 1), value: 0.65, label: "Load"),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -269,6 +273,8 @@ public struct MainViewContainer: Equatable, Sendable {
         self.toggleSwitch = toggleSwitch
         self.select = select
         self.scrollView = scrollView
+        self.modal = modal
+        self.progressBar = progressBar
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -276,6 +282,11 @@ public struct MainViewContainer: Equatable, Sendable {
     }
 
     public mutating func handle(_ event: InputEvent) -> MenuCommand {
+        if modal.isPresented {
+            _ = modal.handle(event)
+            return .none
+        }
+
         if event == .key(.tab), !menuBar.isOpen {
             focusedControl = focusedControl.next
             return .none
@@ -318,6 +329,13 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
+        let modalButton = Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1))
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, modalButton.frame.contains(mouse.location) {
+            focusedControl = .modalButton
+            modal.present()
+            return .none
+        }
+
         switch focusedControl {
         case .menuBar:
             return menuBar.handle(event)
@@ -354,6 +372,11 @@ public struct MainViewContainer: Equatable, Sendable {
         case .scrollView:
             scrollView.isFocused = true
             _ = scrollView.handle(event)
+            return .none
+        case .modalButton:
+            if event == .key(.enter) || event == .key(.character(" ")) {
+                modal.present()
+            }
             return .none
         }
     }
@@ -400,6 +423,9 @@ public struct MainViewContainer: Equatable, Sendable {
         )
         horizontal.render(in: &canvas)
 
+        Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1), isFocused: focusedControl == .modalButton).render(in: &canvas)
+        progressBar.render(in: &canvas)
+
         var button = button
         button.isFocused = focusedControl == .button
         button.render(in: &canvas)
@@ -418,6 +444,7 @@ public struct MainViewContainer: Equatable, Sendable {
         var scrollView = scrollView
         scrollView.isFocused = focusedControl == .scrollView
         scrollView.render(in: &canvas)
+        modal.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
@@ -463,6 +490,7 @@ public enum MainViewFocus: Equatable, Sendable {
     case `switch`
     case select
     case scrollView
+    case modalButton
 
     var next: MainViewFocus {
         switch self {
@@ -479,6 +507,8 @@ public enum MainViewFocus: Equatable, Sendable {
         case .select:
             return .scrollView
         case .scrollView:
+            return .modalButton
+        case .modalButton:
             return .menuBar
         }
     }
