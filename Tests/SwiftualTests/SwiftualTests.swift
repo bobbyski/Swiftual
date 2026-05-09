@@ -466,6 +466,81 @@ final class SwiftualTests: XCTestCase {
         XCTAssertFalse(checkbox.isChecked)
     }
 
+    func testSwitchRendersOffState() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let toggle = Switch("Power", frame: Rect(x: 2, y: 1, width: 14, height: 1))
+
+        toggle.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].character, "<")
+        XCTAssertEqual(canvas[3, 1].character, "O")
+        XCTAssertEqual(canvas[5, 1].character, "F")
+        XCTAssertEqual(canvas[8, 1].character, "P")
+    }
+
+    func testSwitchRendersOnState() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let toggle = Switch("Power", frame: Rect(x: 2, y: 1, width: 14, height: 1), isOn: true)
+
+        toggle.render(in: &canvas)
+
+        XCTAssertEqual(canvas[3, 1].character, "O")
+        XCTAssertEqual(canvas[4, 1].character, "N")
+        XCTAssertEqual(canvas[2, 1].style.background, .green)
+    }
+
+    func testSwitchTogglesWithKeyboardWhenFocused() {
+        var toggle = Switch("Power", frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: true)
+
+        XCTAssertEqual(toggle.handle(.key(.character(" "))), .changed(true))
+        XCTAssertTrue(toggle.isOn)
+        XCTAssertEqual(toggle.handle(.key(.enter)), .changed(false))
+        XCTAssertFalse(toggle.isOn)
+    }
+
+    func testSwitchIgnoresKeyboardWhenUnfocused() {
+        var toggle = Switch("Power", frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: false)
+
+        XCTAssertEqual(toggle.handle(.key(.character(" "))), .none)
+        XCTAssertFalse(toggle.isOn)
+    }
+
+    func testSwitchTogglesWithMouseInsideFrame() {
+        var toggle = Switch("Power", frame: Rect(x: 2, y: 1, width: 14, height: 1))
+
+        XCTAssertEqual(toggle.handle(.mouse(MouseEvent(button: .left, location: Point(x: 3, y: 1), pressed: true))), .changed(true))
+        XCTAssertTrue(toggle.isOn)
+        XCTAssertTrue(toggle.isFocused)
+    }
+
+    func testFocusedSwitchKeepsOnStateColor() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let toggle = Switch("Power", frame: Rect(x: 2, y: 1, width: 14, height: 1), isOn: true, isFocused: true)
+
+        toggle.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].style.background, .green)
+        XCTAssertEqual(canvas[2, 1].style.foreground, .brightWhite)
+        XCTAssertEqual(canvas[2, 1].style.bold, true)
+        XCTAssertEqual(canvas[2, 1].style.inverse, false)
+    }
+
+    func testFocusedSwitchUsesOffFocusColorWhenOff() {
+        var canvas = Canvas(size: TerminalSize(columns: 24, rows: 3))
+        let toggle = Switch("Power", frame: Rect(x: 2, y: 1, width: 14, height: 1), isOn: false, isFocused: true)
+
+        toggle.render(in: &canvas)
+
+        XCTAssertEqual(canvas[2, 1].style.background, .blue)
+    }
+
+    func testSwitchDisabledDoesNotToggle() {
+        var toggle = Switch("Power", frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: true, isEnabled: false)
+
+        XCTAssertEqual(toggle.handle(.key(.enter)), .none)
+        XCTAssertFalse(toggle.isOn)
+    }
+
     func testMainViewCanFocusAndActivateButtonWithKeyboard() {
         var view = MainViewContainer(
             menuBar: MenuBar(
@@ -549,6 +624,43 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 47, y: 6), pressed: true))), .none)
         XCTAssertEqual(view.focusedControl, .checkbox)
         XCTAssertFalse(view.checkbox.isChecked)
+    }
+
+    func testMainViewCanFocusAndToggleSwitchWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        _ = view.handle(.key(.tab))
+        XCTAssertEqual(view.focusedControl, .switch)
+        XCTAssertTrue(view.toggleSwitch.isOn)
+        XCTAssertEqual(view.handle(.key(.character(" "))), .none)
+        XCTAssertFalse(view.toggleSwitch.isOn)
+    }
+
+    func testMainViewCanFocusAndToggleSwitchWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 69, y: 6), pressed: true))), .none)
+        XCTAssertEqual(view.focusedControl, .switch)
+        XCTAssertFalse(view.toggleSwitch.isOn)
     }
 
     func testMainViewCanActivateButtonWithMouse() {
@@ -679,6 +791,26 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(canvas[46, 6].character, "[")
         XCTAssertEqual(canvas[47, 6].character, "x")
         XCTAssertEqual(canvas[50, 6].character, "E")
+    }
+
+    func testDemoRendersSwitchExample() {
+        let view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let canvas = view.render(size: TerminalSize(columns: 100, rows: 24))
+
+        XCTAssertEqual(canvas[68, 6].character, "<")
+        XCTAssertEqual(canvas[69, 6].character, "O")
+        XCTAssertEqual(canvas[70, 6].character, "N")
+        XCTAssertEqual(canvas[73, 6].character, "P")
+        XCTAssertEqual(canvas[68, 6].style.background, .green)
     }
 }
 

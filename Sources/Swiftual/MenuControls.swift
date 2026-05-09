@@ -242,6 +242,7 @@ public struct MainViewContainer: Equatable, Sendable {
     public var button: Button
     public var textInput: TextInput
     public var checkbox: Checkbox
+    public var toggleSwitch: Switch
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -252,6 +253,7 @@ public struct MainViewContainer: Equatable, Sendable {
         button: Button = Button("Quit", frame: Rect(x: 2, y: 6, width: 12, height: 1)),
         textInput: TextInput = TextInput(text: "Swift", placeholder: "Type here", frame: Rect(x: 18, y: 6, width: 24, height: 1)),
         checkbox: Checkbox = Checkbox("Enable feature", frame: Rect(x: 46, y: 6, width: 20, height: 1), isChecked: true),
+        toggleSwitch: Switch = Switch("Power", frame: Rect(x: 68, y: 6, width: 14, height: 1), isOn: true),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -260,6 +262,7 @@ public struct MainViewContainer: Equatable, Sendable {
         self.button = button
         self.textInput = textInput
         self.checkbox = checkbox
+        self.toggleSwitch = toggleSwitch
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
@@ -289,6 +292,12 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, toggleSwitch.frame.contains(mouse.location) {
+            focusedControl = .switch
+            _ = toggleSwitch.handle(event)
+            return .none
+        }
+
         switch focusedControl {
         case .menuBar:
             return menuBar.handle(event)
@@ -313,6 +322,10 @@ public struct MainViewContainer: Equatable, Sendable {
         case .checkbox:
             checkbox.isFocused = true
             _ = checkbox.handle(event)
+            return .none
+        case .switch:
+            toggleSwitch.isFocused = true
+            _ = toggleSwitch.handle(event)
             return .none
         }
     }
@@ -368,6 +381,9 @@ public struct MainViewContainer: Equatable, Sendable {
         var checkbox = checkbox
         checkbox.isFocused = focusedControl == .checkbox
         checkbox.render(in: &canvas)
+        var toggleSwitch = toggleSwitch
+        toggleSwitch.isFocused = focusedControl == .switch
+        toggleSwitch.render(in: &canvas)
         let menuBar = menuBar
         menuBar.render(in: &canvas)
         return canvas
@@ -410,6 +426,7 @@ public enum MainViewFocus: Equatable, Sendable {
     case button
     case textInput
     case checkbox
+    case `switch`
 
     var next: MainViewFocus {
         switch self {
@@ -420,6 +437,8 @@ public enum MainViewFocus: Equatable, Sendable {
         case .textInput:
             return .checkbox
         case .checkbox:
+            return .switch
+        case .switch:
             return .menuBar
         }
     }
