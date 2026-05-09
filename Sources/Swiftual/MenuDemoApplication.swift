@@ -43,7 +43,7 @@ public final class MenuDemoApplication: @unchecked Sendable {
         while !shouldQuit {
             let bytes = try device.readInput(maxBytes: 64)
             for event in backend.decodeInput(bytes) {
-                let command = view.handle(event)
+                let command = view.handle(event, terminalSize: device.size())
                 if command == .quit {
                     shouldQuit = true
                 }

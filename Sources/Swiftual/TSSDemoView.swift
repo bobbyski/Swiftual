@@ -40,6 +40,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         self.splitView = HorizontalSplitView(
             frame: Rect(x: 0, y: 1, width: 180, height: 31),
             dividerOffset: max(10, 180 - panelWidth),
+            dividerWidth: 2,
             minLeading: 60,
             minTrailing: 32
         )
@@ -90,7 +91,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
             }
         }
 
-        let command = baseDemo.handle(event)
+        let command = baseDemo.handle(event, terminalSize: leftTerminalSize(for: terminalSize))
         return command
     }
 
@@ -106,7 +107,7 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         updatePanelControls(for: size)
         var canvas = Canvas(size: size, fill: Cell(" ", style: baseDemo.backgroundStyle))
         let leftFrame = splitView.leadingFrame
-        let leftCanvas = baseDemo.render(size: TerminalSize(columns: max(1, leftFrame.width), rows: size.rows))
+        let leftCanvas = baseDemo.render(size: leftTerminalSize(for: size))
         for row in 0..<size.rows {
             for column in 0..<leftFrame.width {
                 canvas[leftFrame.x + column, row] = leftCanvas[column, row]
@@ -170,6 +171,10 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
 
     private func panelFrame(for size: TerminalSize) -> Rect {
         splitView.trailingFrame
+    }
+
+    private func leftTerminalSize(for size: TerminalSize) -> TerminalSize {
+        TerminalSize(columns: max(1, splitView.leadingFrame.width), rows: size.rows)
     }
 
     public static func frozenBaseDemo() -> MainViewContainer {

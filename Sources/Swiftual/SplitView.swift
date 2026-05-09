@@ -12,6 +12,7 @@ public struct HorizontalSplitView: CanvasRenderable, Equatable, Sendable {
     public var dividerWidth: Int
     public var minLeading: Int
     public var minTrailing: Int
+    public var isClamped: Bool
     public var isDragging: Bool
     public var dividerStyle: TerminalStyle
 
@@ -21,6 +22,7 @@ public struct HorizontalSplitView: CanvasRenderable, Equatable, Sendable {
         dividerWidth: Int = 1,
         minLeading: Int = 10,
         minTrailing: Int = 10,
+        isClamped: Bool = true,
         isDragging: Bool = false,
         dividerStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue)
     ) {
@@ -29,6 +31,7 @@ public struct HorizontalSplitView: CanvasRenderable, Equatable, Sendable {
         self.dividerWidth = max(1, dividerWidth)
         self.minLeading = max(0, minLeading)
         self.minTrailing = max(0, minTrailing)
+        self.isClamped = isClamped
         self.isDragging = isDragging
         self.dividerStyle = dividerStyle
     }
@@ -90,6 +93,9 @@ public struct HorizontalSplitView: CanvasRenderable, Equatable, Sendable {
     }
 
     private func clampDividerOffset(_ offset: Int) -> Int {
+        guard isClamped else {
+            return min(max(0, offset), max(0, frame.width - dividerWidth))
+        }
         let maximum = max(minLeading, frame.width - dividerWidth - minTrailing)
         return min(max(minLeading, offset), maximum)
     }
@@ -101,6 +107,7 @@ public struct VerticalSplitView: CanvasRenderable, Equatable, Sendable {
     public var dividerHeight: Int
     public var minTop: Int
     public var minBottom: Int
+    public var isClamped: Bool
     public var isDragging: Bool
     public var dividerStyle: TerminalStyle
 
@@ -110,6 +117,7 @@ public struct VerticalSplitView: CanvasRenderable, Equatable, Sendable {
         dividerHeight: Int = 1,
         minTop: Int = 3,
         minBottom: Int = 3,
+        isClamped: Bool = true,
         isDragging: Bool = false,
         dividerStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue)
     ) {
@@ -118,6 +126,7 @@ public struct VerticalSplitView: CanvasRenderable, Equatable, Sendable {
         self.dividerHeight = max(1, dividerHeight)
         self.minTop = max(0, minTop)
         self.minBottom = max(0, minBottom)
+        self.isClamped = isClamped
         self.isDragging = isDragging
         self.dividerStyle = dividerStyle
     }
@@ -179,6 +188,9 @@ public struct VerticalSplitView: CanvasRenderable, Equatable, Sendable {
     }
 
     private func clampDividerOffset(_ offset: Int) -> Int {
+        guard isClamped else {
+            return min(max(0, offset), max(0, frame.height - dividerHeight))
+        }
         let maximum = max(minTop, frame.height - dividerHeight - minBottom)
         return min(max(minTop, offset), maximum)
     }

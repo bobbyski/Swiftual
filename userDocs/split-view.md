@@ -36,9 +36,10 @@ Use `topFrame`, `dividerFrame`, and `bottomFrame` to place child content.
 
 - `frame`: outer region controlled by the split view.
 - `dividerOffset`: current divider position from the leading edge or top edge.
-- `dividerWidth` / `dividerHeight`: divider thickness. Defaults to `1`.
+- `dividerWidth` / `dividerHeight`: divider thickness. Defaults to `1`. Demos may override this to `2` for easier mouse targeting.
 - `minLeading` / `minTrailing`: minimum left and right pane sizes for horizontal splits.
 - `minTop` / `minBottom`: minimum top and bottom pane sizes for vertical splits.
+- `isClamped`: when `true`, divider movement honors minimum pane sizes. When `false`, the divider may move to the outer bounds of the split view while still staying inside the split frame.
 - `dividerStyle`: terminal style used to draw the divider.
 - `isDragging`: active drag state, normally managed by `handle(_:)`.
 
@@ -48,6 +49,7 @@ Use `topFrame`, `dividerFrame`, and `bottomFrame` to place child content.
 - Drag while pressed to resize panes.
 - Release the mouse button to end the drag.
 - Divider movement is clamped so neither pane can shrink below its configured minimum.
+- If `isClamped` is `false`, dragging ignores minimum pane sizes and only clamps to the split view bounds.
 
 ## Keyboard Behavior
 
@@ -60,5 +62,6 @@ Keyboard resizing is not implemented yet. Future keyboard support should use foc
 - Divider rendering uses the configured style.
 - Dragging resizes the divider.
 - Dragging clamps against minimum pane sizes.
+- Unclamped mode allows the divider to reach the split bounds.
 - The TCSS demo uses `HorizontalSplitView` for its draggable source panel divider.
 - The main demo uses `VerticalSplitView` for its fixed bottom rich-log pane.

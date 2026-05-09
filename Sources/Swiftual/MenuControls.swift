@@ -254,6 +254,9 @@ public struct MainViewContainer: Equatable, Sendable {
     public var tree: Tree
     public var commandPalette: CommandPalette
     public var workerManager: WorkerManager
+    public var splitClampSwitch: Switch
+    public var logSplitDividerOffset: Int?
+    public var logSplitIsDragging: Bool
     public var demoButtons: [Button]
     public var demoLabels: [Label]
     public var backgroundStyle: TerminalStyle
@@ -318,6 +321,7 @@ public struct MainViewContainer: Equatable, Sendable {
             ]
         ),
         workerManager: WorkerManager = WorkerManager(),
+        splitClampSwitch: Switch = Switch("Clamp log", frame: Rect(x: 116, y: 16, width: 18, height: 1), isOn: false),
         demoButtons: [Button] = MainViewContainer.defaultDemoButtons(),
         demoLabels: [Label] = MainViewContainer.defaultDemoLabels(),
         backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
@@ -338,13 +342,16 @@ public struct MainViewContainer: Equatable, Sendable {
         self.tree = tree
         self.commandPalette = commandPalette
         self.workerManager = workerManager
+        self.splitClampSwitch = splitClampSwitch
+        self.logSplitDividerOffset = nil
+        self.logSplitIsDragging = false
         self.demoButtons = demoButtons
         self.demoLabels = demoLabels
         self.backgroundStyle = backgroundStyle
         self.focusedControl = .menuBar
     }
 
-    public mutating func handle(_ event: InputEvent) -> MenuCommand {
+    public mutating func handle(_ event: InputEvent, terminalSize: TerminalSize = TerminalSize(columns: 140, rows: 24)) -> MenuCommand {
         if commandPalette.isPresented {
             return handleCommandPalette(commandPalette.handle(event))
         }
@@ -369,6 +376,10 @@ public struct MainViewContainer: Equatable, Sendable {
             let command = menuBar.handle(event)
             logMenuCommand(command)
             return command
+        }
+
+        if handleLogSplitDrag(event, terminalSize: terminalSize) {
+            return .none
         }
 
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, button.frame.contains(mouse.location) {
@@ -426,6 +437,12 @@ public struct MainViewContainer: Equatable, Sendable {
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, commandButton.frame.contains(mouse.location) {
             focusedControl = .commandPaletteButton
             presentCommandPalette()
+            return .none
+        }
+
+        if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, splitClampSwitch.frame.contains(mouse.location) {
+            focusedControl = .splitClampSwitch
+            logSplitClampSwitchCommand(splitClampSwitch.handle(event))
             return .none
         }
 
@@ -517,6 +534,10 @@ public struct MainViewContainer: Equatable, Sendable {
             if event == .key(.enter) || event == .key(.character(" ")) {
                 presentCommandPalette()
             }
+            return .none
+        case .splitClampSwitch:
+            splitClampSwitch.isFocused = true
+            logSplitClampSwitchCommand(splitClampSwitch.handle(event))
             return .none
         case .workerButton:
             if event == .key(.enter) || event == .key(.character(" ")) {
@@ -645,6 +666,13 @@ public struct MainViewContainer: Equatable, Sendable {
     private mutating func logSwitchCommand(_ command: SwitchCommand) {
         guard case .changed(let isOn) = command else { return }
         richLog.append("Switch changed: \(isOn ? "on" : "off").", style: TerminalStyle(foreground: .green, background: .black))
+    }
+
+    private mutating func logSplitClampSwitchCommand(_ command: SwitchCommand) {
+        guard case .changed(let isOn) = command else { return }
+        logSplitDividerOffset = nil
+        logSplitIsDragging = false
+        richLog.append("Log split clamp changed: \(isOn ? "clamped" : "unclamped").", style: TerminalStyle(foreground: .green, background: .black))
     }
 
     private mutating func logSelectCommand(_ command: SelectCommand) {
@@ -804,6 +832,9 @@ public struct MainViewContainer: Equatable, Sendable {
         tree.isFocused = focusedControl == .tree
         tree.render(in: &canvas)
         Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1), isFocused: focusedControl == .commandPaletteButton).render(in: &canvas)
+        var splitClampSwitch = splitClampSwitch
+        splitClampSwitch.isFocused = focusedControl == .splitClampSwitch
+        splitClampSwitch.render(in: &canvas)
         Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1), isFocused: focusedControl == .workerButton).render(in: &canvas)
         ProgressBar(
             frame: Rect(x: 100, y: 20, width: 30, height: 1),
@@ -824,13 +855,32 @@ public struct MainViewContainer: Equatable, Sendable {
 
     private func logSplitView(for size: TerminalSize) -> VerticalSplitView {
         let frame = Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1))
-        let preferredOffset = max(21, frame.height - 7)
+        let preferredOffset = max(21, frame.height - 8)
         return VerticalSplitView(
             frame: frame,
-            dividerOffset: preferredOffset,
+            dividerOffset: logSplitDividerOffset ?? preferredOffset,
+            dividerHeight: 2,
             minTop: 8,
-            minBottom: 2
+            minBottom: 1,
+            isClamped: splitClampSwitch.isOn,
+            isDragging: logSplitIsDragging
         )
+    }
+
+    private mutating func handleLogSplitDrag(_ event: InputEvent, terminalSize: TerminalSize) -> Bool {
+        guard case .mouse(let mouse) = event else { return false }
+
+        var split = logSplitView(for: terminalSize)
+        let command = split.handle(event)
+        guard command != .none else { return false }
+
+        logSplitDividerOffset = split.dividerOffset
+        logSplitIsDragging = split.isDragging
+        richLog.append(
+            "Log split drag: mouse=(\(mouse.location.x),\(mouse.location.y)) dividerY=\(split.dividerFrame.y) offset=\(split.dividerOffset) clamped=\(splitClampSwitch.isOn).",
+            style: TerminalStyle(foreground: .cyan, background: .black)
+        )
+        return true
     }
 
     private func richLogFrame(in bottomPane: Rect) -> Rect {
@@ -887,6 +937,7 @@ public enum MainViewFocus: Equatable, Sendable {
     case dataTable
     case tree
     case commandPaletteButton
+    case splitClampSwitch
     case workerButton
 
     var next: MainViewFocus {
@@ -914,6 +965,8 @@ public enum MainViewFocus: Equatable, Sendable {
         case .tree:
             return .commandPaletteButton
         case .commandPaletteButton:
+            return .splitClampSwitch
+        case .splitClampSwitch:
             return .workerButton
         case .workerButton:
             return .menuBar

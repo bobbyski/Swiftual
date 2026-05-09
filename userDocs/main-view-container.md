@@ -12,6 +12,7 @@ The container renders:
 - Demo controls in the top pane.
 - A fixed `VerticalSplitView` divider.
 - A `RichLog` in the bottom pane.
+- A `Clamp log` switch that toggles whether the vertical split honors minimum pane sizes.
 
 ## Focus
 
@@ -31,6 +32,7 @@ public enum MainViewFocus {
     case dataTable
     case tree
     case commandPaletteButton
+    case splitClampSwitch
     case workerButton
 }
 ```
@@ -51,6 +53,7 @@ public enum MainViewFocus {
 - The menu bar renders over the body on row zero.
 - The fixed vertical split divider renders above the bottom log pane.
 - The rich log renders in the bottom split pane.
+- The `Clamp log` switch toggles the split view's `isClamped` setting for short-screen and edge-case tests.
 - `Tab` can move focus through the controls.
 - `Enter` on a focused activatable control triggers it.
 - Mouse click inside a control frame activates or focuses it.

@@ -1406,11 +1406,12 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: TerminalSize(columns: 180, rows: 32))
 
-        XCTAssertEqual(canvas[129, 2].character, "T")
-        XCTAssertEqual(canvas[130, 4].character, "0")
-        XCTAssertEqual(canvas[130, 7].character, "1")
-        XCTAssertEqual(canvas[134, 7].character, "/")
+        XCTAssertEqual(canvas[130, 2].character, "T")
+        XCTAssertEqual(canvas[131, 4].character, "0")
+        XCTAssertEqual(canvas[131, 7].character, "1")
+        XCTAssertEqual(canvas[135, 7].character, "/")
         XCTAssertEqual(canvas[126, 1].style.background, .blue)
+        XCTAssertEqual(canvas[127, 1].style.background, .blue)
     }
 
     func testTSSDemoDividerDragResizesStylesheetPanel() {
@@ -1423,7 +1424,19 @@ final class SwiftualTests: XCTestCase {
 
         let canvas = view.render(size: size)
         XCTAssertEqual(canvas[118, 1].style.background, .blue)
-        XCTAssertEqual(canvas[121, 2].character, "T")
+        XCTAssertEqual(canvas[122, 2].character, "T")
+    }
+
+    func testTSSDemoRoutesBaseDemoVerticalSplitDragUsingLeftPaneSize() {
+        var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
+        let size = TerminalSize(columns: 180, rows: 32)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 24), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 22), pressed: true)), terminalSize: size), .none)
+
+        let messages = view.baseDemo.richLog.entries.map(\.message)
+        XCTAssertTrue(messages.contains("Log split drag: mouse=(10,24) dividerY=24 offset=23 clamped=false."))
+        XCTAssertTrue(messages.contains("Log split drag: mouse=(10,22) dividerY=22 offset=21 clamped=false."))
     }
 
     func testHorizontalSplitViewComputesFramesAndDragsDivider() {
@@ -1451,7 +1464,7 @@ final class SwiftualTests: XCTestCase {
             frame: Rect(x: 2, y: 1, width: 20, height: 12),
             dividerOffset: 5,
             minTop: 3,
-            minBottom: 4
+            minBottom: 2
         )
         var canvas = Canvas(size: TerminalSize(columns: 30, rows: 16))
 
@@ -1462,17 +1475,57 @@ final class SwiftualTests: XCTestCase {
         XCTAssertEqual(split.bottomFrame, Rect(x: 2, y: 7, width: 20, height: 6))
         XCTAssertEqual(canvas[10, 6].style.background, .blue)
         XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 6), pressed: true))), .focused)
-        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 9), pressed: true))), .resized(7))
-        XCTAssertEqual(split.dividerFrame.y, 8)
+        XCTAssertEqual(split.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 9), pressed: true))), .resized(8))
+        XCTAssertEqual(split.dividerFrame.y, 9)
+    }
+
+    func testVerticalSplitViewCanDisableMinimumPaneClamping() {
+        let clamped = VerticalSplitView(
+            frame: Rect(x: 0, y: 0, width: 20, height: 10),
+            dividerOffset: 20,
+            minTop: 3,
+            minBottom: 4,
+            isClamped: true
+        )
+        let unclamped = VerticalSplitView(
+            frame: Rect(x: 0, y: 0, width: 20, height: 10),
+            dividerOffset: 20,
+            minTop: 3,
+            minBottom: 4,
+            isClamped: false
+        )
+
+        XCTAssertEqual(clamped.dividerFrame.y, 5)
+        XCTAssertEqual(unclamped.dividerFrame.y, 9)
+    }
+
+    func testHorizontalSplitViewCanDisableMinimumPaneClamping() {
+        let clamped = HorizontalSplitView(
+            frame: Rect(x: 0, y: 0, width: 20, height: 10),
+            dividerOffset: 20,
+            minLeading: 4,
+            minTrailing: 6,
+            isClamped: true
+        )
+        let unclamped = HorizontalSplitView(
+            frame: Rect(x: 0, y: 0, width: 20, height: 10),
+            dividerOffset: 20,
+            minLeading: 4,
+            minTrailing: 6,
+            isClamped: false
+        )
+
+        XCTAssertEqual(clamped.dividerFrame.x, 13)
+        XCTAssertEqual(unclamped.dividerFrame.x, 19)
     }
 
     func testTSSDemoSelectorSwitchesDisplayedStylesheetText() {
         var view = TSSDemoViewContainer(baseDemo: TSSDemoViewContainer.frozenBaseDemo())
         let size = TerminalSize(columns: 180, rows: 32)
 
-        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 129, y: 4), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 130, y: 4), pressed: true)), terminalSize: size), .none)
         XCTAssertTrue(view.styleSelector.isOpen)
-        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 129, y: 6), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 130, y: 6), pressed: true)), terminalSize: size), .none)
 
         XCTAssertEqual(view.selectedStylesheetIndex, 1)
         XCTAssertFalse(view.styleSelector.isOpen)
@@ -1601,6 +1654,83 @@ final class SwiftualTests: XCTestCase {
         XCTAssertTrue(messages.contains("Scroll view moved to offset 1."))
         XCTAssertTrue(messages.contains("Progress animation started: 0% to 100%."))
         XCTAssertTrue(messages.contains("Data table selected row 3: Log / Ready."))
+    }
+
+    func testMainViewCanToggleLogSplitClampingWithMouse() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        XCTAssertFalse(view.splitClampSwitch.isOn)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 117, y: 16), pressed: true))), .none)
+
+        XCTAssertTrue(view.splitClampSwitch.isOn)
+        XCTAssertEqual(view.focusedControl, .splitClampSwitch)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Log split clamp changed: clamped."))
+    }
+
+    func testMainViewCanToggleLogSplitClampingWithKeyboard() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        for _ in 0..<12 { _ = view.handle(.key(.tab)) }
+        XCTAssertEqual(view.focusedControl, .splitClampSwitch)
+        XCTAssertEqual(view.handle(.key(.character(" "))), .none)
+
+        XCTAssertTrue(view.splitClampSwitch.isOn)
+        XCTAssertTrue(view.richLog.entries.map(\.message).contains("Log split clamp changed: clamped."))
+    }
+
+    func testMainViewLogSplitUnclampedAllowsDividerToUseMoreSpaceOnShortScreens() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+
+        let unclamped = view.render(size: TerminalSize(columns: 80, rows: 12))
+        view.splitClampSwitch.isOn = true
+        let clamped = view.render(size: TerminalSize(columns: 80, rows: 12))
+
+        XCTAssertEqual(clamped[10, 9].style.background, .blue)
+        XCTAssertEqual(unclamped[10, 10].style.background, .blue)
+    }
+
+    func testMainViewLogsVerticalSplitDragDebugInfo() {
+        var view = MainViewContainer(
+            menuBar: MenuBar(
+                menus: [
+                    Menu("File", items: [
+                        MenuItem("Quit") {}
+                    ])
+                ]
+            )
+        )
+        let size = TerminalSize(columns: 80, rows: 24)
+
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 22), pressed: true)), terminalSize: size), .none)
+        XCTAssertEqual(view.handle(.mouse(MouseEvent(button: .left, location: Point(x: 10, y: 18), pressed: true)), terminalSize: size), .none)
+
+        let messages = view.richLog.entries.map(\.message)
+        XCTAssertTrue(messages.contains("Log split drag: mouse=(10,22) dividerY=22 offset=21 clamped=false."))
+        XCTAssertTrue(messages.contains("Log split drag: mouse=(10,18) dividerY=18 offset=17 clamped=false."))
     }
 
     func testMainViewLogsModalOptionSelection() {
@@ -1810,7 +1940,7 @@ final class SwiftualTests: XCTestCase {
     }
 
     func testDemoRendersSelectExample() {
-        let view = MainViewContainer(
+        var view = MainViewContainer(
             menuBar: MenuBar(
                 menus: [
                     Menu("File", items: [
@@ -1819,6 +1949,7 @@ final class SwiftualTests: XCTestCase {
                 ]
             )
         )
+        view.splitClampSwitch.isOn = true
 
         let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
 
@@ -1897,7 +2028,7 @@ final class SwiftualTests: XCTestCase {
     }
 
     func testDemoRendersRichLogExample() {
-        let view = MainViewContainer(
+        var view = MainViewContainer(
             menuBar: MenuBar(
                 menus: [
                     Menu("File", items: [
@@ -1906,13 +2037,13 @@ final class SwiftualTests: XCTestCase {
                 ]
             )
         )
+        view.splitClampSwitch.isOn = true
 
         let canvas = view.render(size: TerminalSize(columns: 110, rows: 24))
 
         XCTAssertEqual(canvas[10, 21].style.background, .blue)
-        XCTAssertEqual(canvas[3, 22].character, "R")
-        XCTAssertEqual(canvas[2, 23].character, "R")
-        XCTAssertEqual(canvas[7, 23].character, ":")
+        XCTAssertEqual(canvas[10, 22].style.background, .blue)
+        XCTAssertEqual(canvas[3, 23].character, "R")
     }
 
     func testDemoRendersDataTableExample() {
