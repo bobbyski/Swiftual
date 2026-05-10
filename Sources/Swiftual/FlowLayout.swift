@@ -204,8 +204,8 @@ public struct FlowChild: Sendable {
         self.preferences = preferences ?? LayoutPreferences(
             width: .auto,
             height: .auto,
-            minWidth: 0,
-            minHeight: 0
+            minWidth: .cells(0),
+            minHeight: .cells(0)
         )
     }
 
@@ -338,14 +338,14 @@ public struct FlowContainer: CanvasRenderable {
             let length = mainLength(for: child.preferences)
             switch length {
             case .cells(let value):
-                lengths[index] = clampMain(value, preferences: child.preferences)
+                lengths[index] = clampMain(value, preferences: child.preferences, intrinsic: intrinsic[index], available: available)
                 remaining -= lengths[index]
             case .percent, .containerWidth, .containerHeight, .viewportWidth, .viewportHeight:
-                lengths[index] = clampMain(resolvedLength(length, intrinsic: intrinsic[index], available: available, container: contentFrame), preferences: child.preferences)
+                lengths[index] = clampMain(resolvedLength(length, intrinsic: intrinsic[index], available: available, container: contentFrame), preferences: child.preferences, intrinsic: intrinsic[index], available: available)
                 remaining -= lengths[index]
             case .auto:
                 let value = axis == .vertical ? intrinsic[index].height : intrinsic[index].width
-                lengths[index] = clampMain(value, preferences: child.preferences)
+                lengths[index] = clampMain(value, preferences: child.preferences, intrinsic: intrinsic[index], available: available)
                 remaining -= lengths[index]
             case .fraction(let value):
                 fractionWeight += max(0, value)
@@ -362,7 +362,7 @@ public struct FlowContainer: CanvasRenderable {
             for index in fractionIndices {
                 guard case .fraction(let weight) = mainLength(for: children[index].preferences) else { continue }
                 let share = Int((Double(remaining) * max(0, weight) / fractionWeight).rounded(.down))
-                lengths[index] = clampMain(share, preferences: children[index].preferences)
+                lengths[index] = clampMain(share, preferences: children[index].preferences, intrinsic: intrinsic[index], available: available)
                 assigned += lengths[index]
             }
             distributeRemainder(max(0, remaining - assigned), among: fractionIndices, lengths: &lengths)
@@ -370,7 +370,7 @@ public struct FlowContainer: CanvasRenderable {
             let share = remaining / fillCount
             let remainder = remaining % fillCount
             for (offset, index) in fillIndices.enumerated() {
-                lengths[index] = clampMain(share + (offset < remainder ? 1 : 0), preferences: children[index].preferences)
+                lengths[index] = clampMain(share + (offset < remainder ? 1 : 0), preferences: children[index].preferences, intrinsic: intrinsic[index], available: available)
             }
         }
 
@@ -407,7 +407,7 @@ public struct FlowContainer: CanvasRenderable {
         case .fraction, .fill:
             raw = available
         }
-        let resolved = clampCross(raw, preferences: preferences)
+        let resolved = clampCross(raw, preferences: preferences, intrinsic: intrinsic, available: available)
         if (axis == .vertical && overflow.x == .visible) || (axis == .horizontal && overflow.y == .visible) {
             return resolved
         }
@@ -479,16 +479,24 @@ public struct FlowContainer: CanvasRenderable {
         }
     }
 
-    private func clampMain(_ value: Int, preferences: LayoutPreferences) -> Int {
-        axis == .vertical
-            ? clamp(value, min: preferences.minHeight, max: preferences.maxHeight)
-            : clamp(value, min: preferences.minWidth, max: preferences.maxWidth)
+    private func clampMain(_ value: Int, preferences: LayoutPreferences, intrinsic: IntrinsicSize, available: Int) -> Int {
+        let minimum = axis == .vertical
+            ? resolvedLength(preferences.minHeight, intrinsic: intrinsic, available: available, container: contentFrame)
+            : resolvedLength(preferences.minWidth, intrinsic: intrinsic, available: available, container: contentFrame)
+        let maximum = axis == .vertical
+            ? preferences.maxHeight.map { resolvedLength($0, intrinsic: intrinsic, available: available, container: contentFrame) }
+            : preferences.maxWidth.map { resolvedLength($0, intrinsic: intrinsic, available: available, container: contentFrame) }
+        return clamp(value, min: minimum, max: maximum)
     }
 
-    private func clampCross(_ value: Int, preferences: LayoutPreferences) -> Int {
-        axis == .vertical
-            ? clamp(value, min: preferences.minWidth, max: preferences.maxWidth)
-            : clamp(value, min: preferences.minHeight, max: preferences.maxHeight)
+    private func clampCross(_ value: Int, preferences: LayoutPreferences, intrinsic: IntrinsicSize, available: Int) -> Int {
+        let minimum = axis == .vertical
+            ? resolvedLength(preferences.minWidth, intrinsic: intrinsic, available: available, container: contentFrame)
+            : resolvedLength(preferences.minHeight, intrinsic: intrinsic, available: available, container: contentFrame)
+        let maximum = axis == .vertical
+            ? preferences.maxWidth.map { resolvedLength($0, intrinsic: intrinsic, available: available, container: contentFrame) }
+            : preferences.maxHeight.map { resolvedLength($0, intrinsic: intrinsic, available: available, container: contentFrame) }
+        return clamp(value, min: minimum, max: maximum)
     }
 
     private func clamp(_ value: Int, min minimum: Int, max maximum: Int?) -> Int {

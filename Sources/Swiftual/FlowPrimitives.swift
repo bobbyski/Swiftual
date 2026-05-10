@@ -201,29 +201,27 @@ public struct ScrollPolicy: Equatable, Sendable {
 public struct LayoutPreferences: Equatable, Sendable {
     public var width: LayoutLength
     public var height: LayoutLength
-    public var minWidth: Int
-    public var minHeight: Int
-    public var maxWidth: Int?
-    public var maxHeight: Int?
+    public var minWidth: LayoutLength
+    public var minHeight: LayoutLength
+    public var maxWidth: LayoutLength?
+    public var maxHeight: LayoutLength?
     public var margin: BoxEdges
 
     public init(
         width: LayoutLength = .auto,
         height: LayoutLength = .auto,
-        minWidth: Int = 0,
-        minHeight: Int = 0,
-        maxWidth: Int? = nil,
-        maxHeight: Int? = nil,
+        minWidth: LayoutLength = .cells(0),
+        minHeight: LayoutLength = .cells(0),
+        maxWidth: LayoutLength? = nil,
+        maxHeight: LayoutLength? = nil,
         margin: BoxEdges = .zero
     ) {
-        let normalizedMinWidth = max(0, minWidth)
-        let normalizedMinHeight = max(0, minHeight)
         self.width = width.normalized
         self.height = height.normalized
-        self.minWidth = normalizedMinWidth
-        self.minHeight = normalizedMinHeight
-        self.maxWidth = maxWidth.map { max(normalizedMinWidth, $0) }
-        self.maxHeight = maxHeight.map { max(normalizedMinHeight, $0) }
+        self.minWidth = minWidth.normalized
+        self.minHeight = minHeight.normalized
+        self.maxWidth = maxWidth?.normalized
+        self.maxHeight = maxHeight?.normalized
         self.margin = margin
     }
 
