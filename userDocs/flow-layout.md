@@ -117,6 +117,7 @@ Minimum and maximum width/height constraints use the same `LayoutLength` values 
 - Fractional children split remaining space proportionally.
 - Percent and auto sizing resolve to stable integer cell frames.
 - Minimum and maximum constraints resolve scalar units before clamping child frames.
+- TCSS-driven demos may map `spacing` / `gap` declarations to `FlowSpacing(main:)` for resize tests and stylesheet-driven layouts.
 - Border and border titles render around content.
 - Border subtitles render in the bottom border with Textual-style default right alignment.
 - Single, double, dashed, rounded, and ASCII border character sets render the expected edge and corner glyphs.

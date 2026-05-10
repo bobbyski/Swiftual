@@ -10,6 +10,16 @@ public struct TCSSStyleModel: Equatable, Sendable {
     }
 }
 
+public struct TCSSStylesheetSource: Equatable, Sendable {
+    public var name: String
+    public var source: String
+
+    public init(name: String, source: String) {
+        self.name = name
+        self.source = source
+    }
+}
+
 public struct TCSSStyleRule: Equatable, Sendable {
     public var selectors: [TCSSSelector]
     public var style: TCSSStyle
@@ -77,6 +87,7 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public var textAlign: TCSSTextAlign?
     public var dividerWidth: Int?
     public var dividerHeight: Int?
+    public var spacing: Int?
 
     public init(
         width: Int? = nil,
@@ -91,7 +102,8 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         margin: TCSSBoxEdges? = nil,
         textAlign: TCSSTextAlign? = nil,
         dividerWidth: Int? = nil,
-        dividerHeight: Int? = nil
+        dividerHeight: Int? = nil,
+        spacing: Int? = nil
     ) {
         self.width = width
         self.height = height
@@ -106,6 +118,7 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         self.textAlign = textAlign
         self.dividerWidth = dividerWidth
         self.dividerHeight = dividerHeight
+        self.spacing = spacing
     }
 }
 
@@ -137,19 +150,30 @@ public struct TCSSStyleModelBuilder: Sendable {
     public init() {}
 
     public func build(from stylesheet: TCSSStylesheet) -> TCSSStyleModel {
-        var diagnostics = stylesheet.diagnostics
-        let rules = stylesheet.rules.map { rule in
-            TCSSStyleRule(
-                selectors: rule.selectors,
-                style: buildStyle(from: rule.declarations, diagnostics: &diagnostics),
-                line: rule.line
-            )
+        build(from: [stylesheet])
+    }
+
+    public func build(from stylesheets: [TCSSStylesheet]) -> TCSSStyleModel {
+        var diagnostics = stylesheets.flatMap(\.diagnostics)
+        let rules = stylesheets.flatMap { stylesheet in
+            stylesheet.rules.map { rule in
+                TCSSStyleRule(
+                    selectors: rule.selectors,
+                    style: buildStyle(from: rule.declarations, diagnostics: &diagnostics),
+                    line: rule.line
+                )
+            }
         }
         return TCSSStyleModel(rules: rules, diagnostics: diagnostics)
     }
 
     public func parse(_ source: String) -> TCSSStyleModel {
         build(from: TCSSParser().parse(source))
+    }
+
+    public func parse(_ sources: [TCSSStylesheetSource]) -> TCSSStyleModel {
+        let parser = TCSSParser()
+        return build(from: sources.map { parser.parse($0.source) })
     }
 
     private func buildStyle(from declarations: [TCSSDeclaration], diagnostics: inout [TCSSDiagnostic]) -> TCSSStyle {
@@ -192,6 +216,8 @@ public struct TCSSStyleModelBuilder: Sendable {
                 assignInt(declaration, to: \.layout.dividerHeight, in: &style, diagnostics: &diagnostics)
             case "divider-size":
                 assignDividerSize(declaration, to: &style, diagnostics: &diagnostics)
+            case "spacing", "gap":
+                assignInt(declaration, to: \.layout.spacing, in: &style, diagnostics: &diagnostics)
             default:
                 diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported TCSS property '\(declaration.property)'."))
             }

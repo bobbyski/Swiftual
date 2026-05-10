@@ -41,6 +41,17 @@ final class TCSSScalarLengthTests: XCTestCase {
         XCTAssertEqual(model.rules[0].style.layout.maxHeight, .viewportHeight(0.2))
     }
 
+    func testTCSSParsesFlowSpacing() {
+        let model = TCSSStyleModelBuilder().parse("""
+        FormRow { spacing: 0; }
+        ContainerRow { gap: 2; }
+        """)
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(model.rules[0].style.layout.spacing, 0)
+        XCTAssertEqual(model.rules[1].style.layout.spacing, 2)
+    }
+
     func testFlowContainerResolvesTextualScalarSizingUnits() {
         let child = Label("x", frame: Rect(x: 0, y: 0, width: 1, height: 1))
         let flow = FlowContainer(

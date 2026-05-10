@@ -22,6 +22,16 @@ let stylesheet = TCSSParser().parse(source)
 let model = TCSSStyleModelBuilder().build(from: stylesheet)
 ```
 
+Multiple active stylesheet sources can be parsed in deterministic order. Later equal-specificity declarations win, while higher-specificity selectors still override lower-specificity declarations from later sources.
+
+```swift
+let model = TCSSStyleModelBuilder().parse([
+    TCSSStylesheetSource(name: "base.tcss", source: baseSource),
+    TCSSStylesheetSource(name: "theme.tcss", source: themeSource),
+    TCSSStylesheetSource(name: "target.tcss", source: targetSource)
+])
+```
+
 ## Model Types
 
 - `TCSSStyleModel.rules`: style rules with selectors and typed style data.
@@ -30,6 +40,7 @@ let model = TCSSStyleModelBuilder().build(from: stylesheet)
 - `TCSSStyleRule.style`: typed style data.
 - `TCSSStyle.terminalStyle`: optional `TerminalStyle` patch values.
 - `TCSSStyle.layout`: optional layout and future control style values.
+- `TCSSStylesheetSource`: named TCSS source used when parsing multiple active files.
 - `TCSSTerminalStylePatch.applied(to:)`: overlays declared terminal values on a pure Swift base style.
 
 ## Supported Terminal Style Declarations
@@ -61,6 +72,7 @@ Supported colors:
 - `divider-width`
 - `divider-height`
 - `divider-size`: sets both divider dimensions.
+- `spacing` / `gap`: fixed cell spacing between flow children in demo/application containers that expose spacing.
 
 Integer values may be plain numbers or use `ch`, `cell`, or `cells` suffixes.
 Width, height, min-width, min-height, max-width, and max-height may also use Textual-style scalar units:
@@ -93,7 +105,10 @@ The style model keeps parser diagnostics and adds diagnostics for:
 - Hex, RGB, ANSI indexes, and named colors parse correctly.
 - Layout declarations map to typed fields.
 - Scalar layout declarations parse for width, height, and min/max constraints.
+- Flow spacing declarations parse for containers that opt into TCSS-driven child gaps.
 - Spacing shorthands parse one to four values.
 - Unsupported properties and invalid values report diagnostics.
 - The style model does not apply styles to controls yet; cascade and control application are separate steps.
 - `TCSSCascade` resolves model rules for a control context before application.
+- Multiple active stylesheet sources preserve source order.
+- Multi-class selectors require all listed classes to be present on the style context.

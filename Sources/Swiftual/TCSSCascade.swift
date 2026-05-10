@@ -73,6 +73,7 @@ private struct TCSSPropertyWeights {
     var textAlign: TCSSCascadeWeight?
     var dividerWidth: TCSSCascadeWeight?
     var dividerHeight: TCSSCascadeWeight?
+    var spacing: TCSSCascadeWeight?
 }
 
 private extension TCSSSelector {
@@ -134,6 +135,7 @@ private extension TCSSStyle {
         assign(incoming.layout.textAlign, to: \.layout.textAlign, weight: weight, winning: &layoutWeights.textAlign)
         assign(incoming.layout.dividerWidth, to: \.layout.dividerWidth, weight: weight, winning: &layoutWeights.dividerWidth)
         assign(incoming.layout.dividerHeight, to: \.layout.dividerHeight, weight: weight, winning: &layoutWeights.dividerHeight)
+        assign(incoming.layout.spacing, to: \.layout.spacing, weight: weight, winning: &layoutWeights.spacing)
     }
 
     mutating func assign<Value>(
