@@ -68,10 +68,10 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public var height: Int?
     public var widthLength: LayoutLength?
     public var heightLength: LayoutLength?
-    public var minWidth: Int?
-    public var minHeight: Int?
-    public var maxWidth: Int?
-    public var maxHeight: Int?
+    public var minWidth: LayoutLength?
+    public var minHeight: LayoutLength?
+    public var maxWidth: LayoutLength?
+    public var maxHeight: LayoutLength?
     public var padding: TCSSBoxEdges?
     public var margin: TCSSBoxEdges?
     public var textAlign: TCSSTextAlign?
@@ -83,10 +83,10 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         height: Int? = nil,
         widthLength: LayoutLength? = nil,
         heightLength: LayoutLength? = nil,
-        minWidth: Int? = nil,
-        minHeight: Int? = nil,
-        maxWidth: Int? = nil,
-        maxHeight: Int? = nil,
+        minWidth: LayoutLength? = nil,
+        minHeight: LayoutLength? = nil,
+        maxWidth: LayoutLength? = nil,
+        maxHeight: LayoutLength? = nil,
         padding: TCSSBoxEdges? = nil,
         margin: TCSSBoxEdges? = nil,
         textAlign: TCSSTextAlign? = nil,
@@ -173,13 +173,13 @@ public struct TCSSStyleModelBuilder: Sendable {
             case "height":
                 assignLayoutLength(declaration, dimension: .height, in: &style, diagnostics: &diagnostics)
             case "min-width":
-                assignInt(declaration, to: \.layout.minWidth, in: &style, diagnostics: &diagnostics)
+                assignLayoutConstraint(declaration, constraint: \.minWidth, in: &style, diagnostics: &diagnostics)
             case "min-height":
-                assignInt(declaration, to: \.layout.minHeight, in: &style, diagnostics: &diagnostics)
+                assignLayoutConstraint(declaration, constraint: \.minHeight, in: &style, diagnostics: &diagnostics)
             case "max-width":
-                assignInt(declaration, to: \.layout.maxWidth, in: &style, diagnostics: &diagnostics)
+                assignLayoutConstraint(declaration, constraint: \.maxWidth, in: &style, diagnostics: &diagnostics)
             case "max-height":
-                assignInt(declaration, to: \.layout.maxHeight, in: &style, diagnostics: &diagnostics)
+                assignLayoutConstraint(declaration, constraint: \.maxHeight, in: &style, diagnostics: &diagnostics)
             case "padding":
                 assignBoxEdges(declaration, to: \.layout.padding, in: &style, diagnostics: &diagnostics)
             case "margin":
@@ -266,6 +266,19 @@ public struct TCSSStyleModelBuilder: Sendable {
                 style.layout.height = nil
             }
         }
+    }
+
+    private func assignLayoutConstraint(
+        _ declaration: TCSSDeclaration,
+        constraint keyPath: WritableKeyPath<TCSSLayoutStyle, LayoutLength?>,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let length = parseLayoutLength(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative length value for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        style.layout[keyPath: keyPath] = length
     }
 
     private func assignBoxEdges(

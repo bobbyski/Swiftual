@@ -63,7 +63,7 @@ Supported colors:
 - `divider-size`: sets both divider dimensions.
 
 Integer values may be plain numbers or use `ch`, `cell`, or `cells` suffixes.
-Width and height may also use Textual-style scalar units:
+Width, height, min-width, min-height, max-width, and max-height may also use Textual-style scalar units:
 
 - Unitless numbers and `cell`/`cells`/`ch` values become cell counts. Decimal cell values are truncated toward zero, matching Textual's scalar behavior.
 - `%` resolves against the available size on the same axis.
@@ -73,7 +73,7 @@ Width and height may also use Textual-style scalar units:
 - `auto` uses intrinsic size.
 - `fill` remains a Swiftual extension for filling remaining space when no `fr` children are present.
 
-Cell values populate the legacy integer `width` and `height` fields; non-cell values populate `widthLength` and `heightLength` for flow containers to resolve against parent space.
+Cell values populate the legacy integer `width` and `height` fields; non-cell values populate `widthLength` and `heightLength` for flow containers to resolve against parent space. Minimum and maximum size constraints use the same scalar value model so TCSS can clamp layouts using cells, percentages, fractions, container units, or viewport units.
 
 ## Diagnostics
 
@@ -92,6 +92,7 @@ The style model keeps parser diagnostics and adds diagnostics for:
 - Style patches preserve undeclared base values when applied.
 - Hex, RGB, ANSI indexes, and named colors parse correctly.
 - Layout declarations map to typed fields.
+- Scalar layout declarations parse for width, height, and min/max constraints.
 - Spacing shorthands parse one to four values.
 - Unsupported properties and invalid values report diagnostics.
 - The style model does not apply styles to controls yet; cascade and control application are separate steps.

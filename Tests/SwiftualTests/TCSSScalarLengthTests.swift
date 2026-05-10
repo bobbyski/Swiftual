@@ -24,6 +24,23 @@ final class TCSSScalarLengthTests: XCTestCase {
         XCTAssertEqual(model.rules[4].style.layout.heightLength, .cells(3))
     }
 
+    func testTCSSParsesTextualScalarMinAndMaxUnits() {
+        let model = TCSSStyleModelBuilder().parse("""
+        A {
+            min-width: 25w;
+            max-width: 50vw;
+            min-height: 10h;
+            max-height: 20vh;
+        }
+        """)
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(model.rules[0].style.layout.minWidth, .containerWidth(0.25))
+        XCTAssertEqual(model.rules[0].style.layout.maxWidth, .viewportWidth(0.5))
+        XCTAssertEqual(model.rules[0].style.layout.minHeight, .containerHeight(0.1))
+        XCTAssertEqual(model.rules[0].style.layout.maxHeight, .viewportHeight(0.2))
+    }
+
     func testFlowContainerResolvesTextualScalarSizingUnits() {
         let child = Label("x", frame: Rect(x: 0, y: 0, width: 1, height: 1))
         let flow = FlowContainer(
@@ -41,6 +58,26 @@ final class TCSSScalarLengthTests: XCTestCase {
         XCTAssertEqual(frames[0].width, 50)
         XCTAssertEqual(frames[0].height, 20)
         XCTAssertEqual(frames[1].width, 50)
+        XCTAssertEqual(frames[1].height, 10)
+    }
+
+    func testFlowContainerResolvesTextualScalarConstraints() {
+        let child = Label("x", frame: Rect(x: 0, y: 0, width: 1, height: 1))
+        let flow = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: 100, height: 40),
+            axis: .vertical,
+            viewportSize: TerminalSize(columns: 200, rows: 80),
+            children: [
+                FlowChild(child, preferences: LayoutPreferences(width: .fill, height: .cells(1), minHeight: .viewportHeight(0.25), maxWidth: .containerWidth(0.5))),
+                FlowChild(child, preferences: LayoutPreferences(width: .cells(2), height: .cells(30), minWidth: .viewportWidth(0.1), maxHeight: .containerHeight(0.25)))
+            ]
+        )
+
+        let frames = flow.laidOutChildren()
+
+        XCTAssertEqual(frames[0].width, 50)
+        XCTAssertEqual(frames[0].height, 20)
+        XCTAssertEqual(frames[1].width, 20)
         XCTAssertEqual(frames[1].height, 10)
     }
 }

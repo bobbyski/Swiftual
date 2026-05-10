@@ -99,7 +99,7 @@ Each `FlowChild` can carry `LayoutPreferences`:
 - `.auto`: use the child renderable's current frame as intrinsic size.
 - `.fill`: consume the available cross axis or remaining main-axis space.
 
-Minimum and maximum width/height constraints clamp the resolved frame.
+Minimum and maximum width/height constraints use the same `LayoutLength` values and clamp the resolved frame after primary sizing.
 
 ## Rendering Behavior
 
@@ -116,6 +116,7 @@ Minimum and maximum width/height constraints clamp the resolved frame.
 - Horizontal flow places children left to right and preserves spacing.
 - Fractional children split remaining space proportionally.
 - Percent and auto sizing resolve to stable integer cell frames.
+- Minimum and maximum constraints resolve scalar units before clamping child frames.
 - Border and border titles render around content.
 - Border subtitles render in the bottom border with Textual-style default right alignment.
 - Single, double, dashed, rounded, and ASCII border character sets render the expected edge and corner glyphs.
