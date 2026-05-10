@@ -21,12 +21,11 @@ The pure Swift baseline demo lives in `Code/SwiftualDemo` and runs with `swift r
 ## Layout
 
 - The original demo remains on the left as the baseline.
-- Temporary scalar-resize isolation: the original demo and right panel use a fixed split instead of the draggable `HorizontalSplitView` divider while `10-edge-to-edge-flow.tcss` is being validated.
-- Temporary scalar-resize isolation: the bottom rich-log `VerticalSplitView` is hidden while `10-edge-to-edge-flow.tcss` is being validated. The Rich Log is rendered as an inline flow child below the controls so it still proves remaining-height behavior without a split pane absorbing resize.
-- Restore both split views after the scalar/percentage edge-to-edge acceptance test passes.
+- The original demo and TCSS panel are separated by a draggable `HorizontalSplitView`.
+- The Rich Log lives in the original demo's bottom `VerticalSplitView`, matching the baseline demo structure again.
 - The right panel starts below the blue menu bar.
 - A selector at the top chooses a sample stylesheet feature set.
-- During the scalar acceptance phase, the demo opens on `10-edge-to-edge-flow.tcss` so terminal resize immediately exercises percentage sizing across every visible control group.
+- The demo opens on `00-baseline.tcss`; switch to `10-edge-to-edge-flow.tcss` when you want to exercise percentage sizing across every visible control group.
 - A scrollable source preview below shows the selected stylesheet text with RichSwift syntax highlighting and line numbers.
 - The panel is intentionally separate so stylesheet parsing and application can be tested across the whole control set without changing the frozen baseline demo.
 
