@@ -297,6 +297,12 @@ public struct MainViewContainer: Equatable, Sendable {
     public var workerProgressCompletedStyle: TerminalStyle
     public var workerProgressTextStyle: TerminalStyle
     public var backgroundStyle: TerminalStyle
+    public var showcasePreferences: LayoutPreferences
+    public var introPanelPreferences: LayoutPreferences
+    public var formControlsPreferences: LayoutPreferences
+    public var labelButtonPanelPreferences: LayoutPreferences
+    public var containerPanelPreferences: LayoutPreferences
+    public var actionsPanelPreferences: LayoutPreferences
     public var focusedControl: MainViewFocus
 
     public init(
@@ -372,7 +378,13 @@ public struct MainViewContainer: Equatable, Sendable {
         workerProgressTrackStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         workerProgressCompletedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .green, bold: true),
         workerProgressTextStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, bold: true),
-        backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack)
+        backgroundStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .brightBlack),
+        showcasePreferences: LayoutPreferences = MainViewContainer.defaultShowcasePreferences,
+        introPanelPreferences: LayoutPreferences = MainViewContainer.defaultIntroPanelPreferences,
+        formControlsPreferences: LayoutPreferences = MainViewContainer.defaultFormControlsPreferences,
+        labelButtonPanelPreferences: LayoutPreferences = MainViewContainer.defaultLabelButtonPanelPreferences,
+        containerPanelPreferences: LayoutPreferences = MainViewContainer.defaultContainerPanelPreferences,
+        actionsPanelPreferences: LayoutPreferences = MainViewContainer.defaultActionsPanelPreferences
     ) {
         self.menuBar = menuBar
         self.button = button
@@ -407,10 +419,18 @@ public struct MainViewContainer: Equatable, Sendable {
         self.workerProgressCompletedStyle = workerProgressCompletedStyle
         self.workerProgressTextStyle = workerProgressTextStyle
         self.backgroundStyle = backgroundStyle
+        self.showcasePreferences = showcasePreferences
+        self.introPanelPreferences = introPanelPreferences
+        self.formControlsPreferences = formControlsPreferences
+        self.labelButtonPanelPreferences = labelButtonPanelPreferences
+        self.containerPanelPreferences = containerPanelPreferences
+        self.actionsPanelPreferences = actionsPanelPreferences
         self.focusedControl = .menuBar
     }
 
     public mutating func handle(_ event: InputEvent, terminalSize: TerminalSize = TerminalSize(columns: 140, rows: 24)) -> MenuCommand {
+        applyShowcaseLayout(for: terminalSize)
+
         if commandPalette.isPresented {
             return handleCommandPalette(commandPalette.handle(event))
         }
@@ -492,7 +512,8 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
-        let commandButton = Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1))
+        let layout = showcaseLayout(for: terminalSize)
+        let commandButton = Button("Commands", frame: layout.commandButtonFrame)
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, commandButton.frame.contains(mouse.location) {
             focusedControl = .commandPaletteButton
             presentCommandPalette()
@@ -505,14 +526,14 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
-        let workerButton = Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1))
+        let workerButton = Button(workerButtonTitle, frame: layout.workerButtonFrame)
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, workerButton.frame.contains(mouse.location) {
             focusedControl = .workerButton
             toggleWorker()
             return .none
         }
 
-        let modalButton = Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1))
+        let modalButton = Button("Show modal", frame: layout.modalButtonFrame)
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, modalButton.frame.contains(mouse.location) {
             focusedControl = .modalButton
             modal.present()
@@ -520,7 +541,7 @@ public struct MainViewContainer: Equatable, Sendable {
             return .none
         }
 
-        let progressButton = Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1))
+        let progressButton = Button("Animate", frame: layout.progressButtonFrame)
         if case .mouse(let mouse) = event, mouse.pressed, mouse.button == .left, progressButton.frame.contains(mouse.location) {
             focusedControl = .progressButton
             startProgressAnimation()
@@ -823,87 +844,176 @@ public struct MainViewContainer: Equatable, Sendable {
     public func render(size: TerminalSize) -> Canvas {
         var canvas = Canvas(size: size, fill: Cell(" ", style: backgroundStyle))
         canvas.fill(rect: Rect(x: 0, y: 1, width: size.columns, height: max(0, size.rows - 1)), style: backgroundStyle)
-        Label("Swiftual demo", frame: Rect(x: 2, y: 2, width: max(0, size.columns - 4), height: 1), style: backgroundStyle).render(in: &canvas)
-        Label(
-            "Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.",
-            frame: Rect(x: 2, y: 4, width: max(0, size.columns - 4), height: 1),
-            style: backgroundStyle
-        ).render(in: &canvas)
-
-        for label in demoLabels {
-            label.render(in: &canvas)
-        }
-
-        for button in demoButtons {
-            button.render(in: &canvas)
-        }
+        let logSplit = logSplitView(for: size)
+        let baseShowcaseFrame = Rect(
+            x: logSplit.topFrame.x + 2,
+            y: logSplit.topFrame.y + 1,
+            width: max(0, logSplit.topFrame.width - 4),
+            height: max(0, logSplit.topFrame.height - 2)
+        )
+        let showcaseFrame = rect(
+            from: showcasePreferences,
+            defaultFrame: baseShowcaseFrame,
+            parentFrame: baseShowcaseFrame
+        )
 
         let vertical = Vertical(
-            frame: Rect(x: 2, y: 14, width: 30, height: 5),
+            frame: Rect(x: 0, y: 0, width: 30, height: 5),
             spacing: 1,
             fillStyle: verticalFillStyle,
+            border: .single(style: verticalTitleStyle),
+            borderTitle: "Vertical",
+            borderSubtitle: "Stack",
             children: [
-                AnyCanvasRenderable(Label("Vertical stack", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: verticalTitleStyle, alignment: .center)),
-                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 30, height: 1), style: verticalChildLabelStyle)),
+                AnyCanvasRenderable(Label("Child label", frame: Rect(x: 0, y: 0, width: 28, height: 1), style: verticalChildLabelStyle)),
                 AnyCanvasRenderable(Button("Child button", frame: Rect(x: 0, y: 0, width: 16, height: 1), style: verticalChildButtonStyle))
             ]
         )
-        vertical.render(in: &canvas)
 
         let horizontal = Horizontal(
-            frame: Rect(x: 36, y: 14, width: 36, height: 3),
+            frame: Rect(x: 0, y: 0, width: 38, height: 3),
             spacing: 2,
             fillStyle: horizontalFillStyle,
+            border: .single(style: horizontalLabelStyle),
+            borderTitle: "Horizontal",
+            borderSubtitle: "Row",
             children: [
                 AnyCanvasRenderable(Label("Horizontal", frame: Rect(x: 0, y: 0, width: 12, height: 1), style: horizontalLabelStyle)),
                 AnyCanvasRenderable(Button("One", frame: Rect(x: 0, y: 0, width: 8, height: 1), style: horizontalButtonStyle)),
                 AnyCanvasRenderable(Button("Two", frame: Rect(x: 0, y: 0, width: 8, height: 1), isFocused: true, style: horizontalButtonStyle, focusedStyle: horizontalFocusedButtonStyle))
             ]
         )
-        horizontal.render(in: &canvas)
-
-        Button("Show modal", frame: Rect(x: 36, y: 18, width: 14, height: 1), isFocused: focusedControl == .modalButton).render(in: &canvas)
-        progressBar.render(in: &canvas)
-        Button("Animate", frame: Rect(x: 56, y: 19, width: 12, height: 1), isFocused: focusedControl == .progressButton).render(in: &canvas)
 
         var button = button
         button.isFocused = focusedControl == .button
-        button.render(in: &canvas)
         var textInput = textInput
         textInput.isFocused = focusedControl == .textInput
-        textInput.render(in: &canvas)
         var checkbox = checkbox
         checkbox.isFocused = focusedControl == .checkbox
-        checkbox.render(in: &canvas)
         var toggleSwitch = toggleSwitch
         toggleSwitch.isFocused = focusedControl == .switch
-        toggleSwitch.render(in: &canvas)
         var select = select
         select.isFocused = focusedControl == .select
-        select.render(in: &canvas)
         var scrollView = scrollView
         scrollView.isFocused = focusedControl == .scrollView
-        scrollView.render(in: &canvas)
         var dataTable = dataTable
         dataTable.isFocused = focusedControl == .dataTable
-        dataTable.render(in: &canvas)
         var tree = tree
         tree.isFocused = focusedControl == .tree
-        tree.render(in: &canvas)
-        Button("Commands", frame: Rect(x: 100, y: 16, width: 14, height: 1), isFocused: focusedControl == .commandPaletteButton).render(in: &canvas)
         var splitClampSwitch = splitClampSwitch
         splitClampSwitch.isFocused = focusedControl == .splitClampSwitch
-        splitClampSwitch.render(in: &canvas)
-        Button(workerButtonTitle, frame: Rect(x: 100, y: 18, width: 14, height: 1), isFocused: focusedControl == .workerButton).render(in: &canvas)
-        ProgressBar(
+        let modalButton = Button("Show modal", frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: focusedControl == .modalButton)
+        let progressButton = Button("Animate", frame: Rect(x: 0, y: 0, width: 12, height: 1), isFocused: focusedControl == .progressButton)
+        let commandButton = Button("Commands", frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: focusedControl == .commandPaletteButton)
+        let workerButton = Button(workerButtonTitle, frame: Rect(x: 0, y: 0, width: 14, height: 1), isFocused: focusedControl == .workerButton)
+        let workerProgress = ProgressBar(
             frame: Rect(x: 100, y: 20, width: 30, height: 1),
             value: workerManager.state == .idle ? 0 : workerManager.progress,
             label: "Worker",
             trackStyle: workerProgressTrackStyle,
             completedStyle: workerProgressCompletedStyle,
             textStyle: workerProgressTextStyle
+        )
+        let introPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3),
+            axis: .vertical,
+            spacing: FlowSpacing(main: 1),
+            children: [
+                FlowChild(Label("Swiftual demo", frame: Rect(x: 0, y: 0, width: max(0, showcaseFrame.width), height: 1), style: backgroundStyle)),
+                FlowChild(Label("Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.", frame: Rect(x: 0, y: 0, width: max(0, showcaseFrame.width), height: 1), style: backgroundStyle))
+            ]
+        )
+        let formControls = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: max(1, [button.frame.height, textInput.frame.height, checkbox.frame.height, toggleSwitch.frame.height, select.frame.height].max() ?? 1)),
+            axis: .horizontal,
+            spacing: FlowSpacing(main: 2),
+            children: [
+                FlowChild(button),
+                FlowChild(textInput),
+                FlowChild(checkbox),
+                FlowChild(toggleSwitch),
+                FlowChild(select)
+            ]
+        )
+        let labelRow = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: max(1, demoLabels.map(\.frame.height).max() ?? 1)),
+            axis: .horizontal,
+            spacing: FlowSpacing(main: 2),
+            children: demoLabels.map { FlowChild($0) }
+        )
+        let buttonRow = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: max(1, demoButtons.map(\.frame.height).max() ?? 1)),
+            axis: .horizontal,
+            spacing: FlowSpacing(main: 2),
+            children: demoButtons.map { FlowChild($0) }
+        )
+        let labelButtonPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3),
+            axis: .vertical,
+            spacing: FlowSpacing(main: 1),
+            children: [
+                FlowChild(labelRow, preferences: LayoutPreferences(width: .fill, height: .auto)),
+                FlowChild(buttonRow, preferences: LayoutPreferences(width: .fill, height: .auto))
+            ]
+        )
+        let containerPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 5),
+            axis: .horizontal,
+            spacing: FlowSpacing(main: 3),
+            overflow: Overflow(x: .hidden, y: .hidden),
+            children: [
+                FlowChild(vertical),
+                FlowChild(horizontal),
+                FlowChild(dataTable),
+                FlowChild(scrollView),
+                FlowChild(tree)
+            ]
+        )
+        let progressPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: max(progressBar.frame.width, progressButton.frame.width), height: 3),
+            axis: .vertical,
+            spacing: FlowSpacing(main: 1),
+            alignment: FlowAlignment(horizontal: .center, vertical: .top),
+            children: [
+                FlowChild(progressBar),
+                FlowChild(progressButton)
+            ]
+        )
+        let workerPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: max(workerProgress.frame.width, workerButton.frame.width), height: 3),
+            axis: .vertical,
+            spacing: FlowSpacing(main: 1),
+            children: [
+                FlowChild(workerButton),
+                FlowChild(workerProgress)
+            ]
+        )
+        let actionsPanel = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3),
+            axis: .horizontal,
+            spacing: FlowSpacing(main: 3),
+            children: [
+                FlowChild(modalButton),
+                FlowChild(progressPanel),
+                FlowChild(commandButton),
+                FlowChild(splitClampSwitch),
+                FlowChild(workerPanel)
+            ]
+        )
+        FlowContainer(
+            frame: showcaseFrame,
+            axis: .vertical,
+            spacing: FlowSpacing(main: 1),
+            overflow: .hidden,
+            children: [
+                FlowChild(introPanel, preferences: introPanelPreferences),
+                FlowChild(formControls, preferences: formControlsPreferences),
+                FlowChild(labelButtonPanel, preferences: labelButtonPanelPreferences),
+                FlowChild(containerPanel, preferences: containerPanelPreferences),
+                FlowChild(actionsPanel, preferences: actionsPanelPreferences)
+            ]
         ).render(in: &canvas)
-        let logSplit = logSplitView(for: size)
+
         logSplit.render(in: &canvas)
         var richLog = richLog
         richLog.frame = richLogFrame(in: logSplit.bottomFrame)
@@ -946,6 +1056,201 @@ public struct MainViewContainer: Equatable, Sendable {
             height: bottomPane.height
         )
     }
+
+    private mutating func applyShowcaseLayout(for size: TerminalSize) {
+        let layout = showcaseLayout(for: size)
+        button.frame = layout.buttonFrame
+        textInput.frame = layout.textInputFrame
+        checkbox.frame = layout.checkboxFrame
+        toggleSwitch.frame = layout.switchFrame
+        select.frame = layout.selectFrame
+        for index in demoLabels.indices where layout.labelFrames.indices.contains(index) {
+            demoLabels[index].frame = layout.labelFrames[index]
+        }
+        for index in demoButtons.indices where layout.demoButtonFrames.indices.contains(index) {
+            demoButtons[index].frame = layout.demoButtonFrames[index]
+        }
+        dataTable.frame = layout.dataTableFrame
+        scrollView.frame = layout.scrollViewFrame
+        tree.frame = layout.treeFrame
+        progressBar.frame = layout.progressBarFrame
+        splitClampSwitch.frame = layout.splitClampSwitchFrame
+    }
+
+    private func showcaseLayout(for size: TerminalSize) -> ShowcaseLayout {
+        let logSplit = logSplitView(for: size)
+        let baseShowcaseFrame = Rect(
+            x: logSplit.topFrame.x + 2,
+            y: logSplit.topFrame.y + 1,
+            width: max(0, logSplit.topFrame.width - 4),
+            height: max(0, logSplit.topFrame.height - 2)
+        )
+        let showcaseFrame = rect(
+            from: showcasePreferences,
+            defaultFrame: baseShowcaseFrame,
+            parentFrame: baseShowcaseFrame
+        )
+
+        let formHeight = max(1, [button.frame.height, textInput.frame.height, checkbox.frame.height, toggleSwitch.frame.height, select.frame.height].max() ?? 1)
+        let labelHeight = max(1, demoLabels.map(\.frame.height).max() ?? 1)
+        let demoButtonHeight = max(1, demoButtons.map(\.frame.height).max() ?? 1)
+
+        let introPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3), axis: .vertical, spacing: FlowSpacing(main: 1), children: [
+            FlowChild(Label("Swiftual demo", frame: Rect(x: 0, y: 0, width: max(0, showcaseFrame.width), height: 1), style: backgroundStyle)),
+            FlowChild(Label("Use mouse or keyboard: arrows, Enter, Escape. File > Quit exits.", frame: Rect(x: 0, y: 0, width: max(0, showcaseFrame.width), height: 1), style: backgroundStyle))
+        ])
+        let formControls = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: formHeight), axis: .horizontal, spacing: FlowSpacing(main: 2), children: [
+            FlowChild(button),
+            FlowChild(textInput),
+            FlowChild(checkbox),
+            FlowChild(toggleSwitch),
+            FlowChild(select)
+        ])
+        let labelRow = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: labelHeight), axis: .horizontal, spacing: FlowSpacing(main: 2), children: demoLabels.map { FlowChild($0) })
+        let buttonRow = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: demoButtonHeight), axis: .horizontal, spacing: FlowSpacing(main: 2), children: demoButtons.map { FlowChild($0) })
+        let labelButtonPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3), axis: .vertical, spacing: FlowSpacing(main: 1), children: [
+            FlowChild(labelRow, preferences: LayoutPreferences(width: .fill, height: .auto)),
+            FlowChild(buttonRow, preferences: LayoutPreferences(width: .fill, height: .auto))
+        ])
+        let vertical = Vertical(frame: Rect(x: 0, y: 0, width: 30, height: 5), spacing: 1, children: [])
+        let horizontal = Horizontal(frame: Rect(x: 0, y: 0, width: 38, height: 3), spacing: 2, children: [])
+        let containerPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 5), axis: .horizontal, spacing: FlowSpacing(main: 3), children: [
+            FlowChild(vertical),
+            FlowChild(horizontal),
+            FlowChild(dataTable),
+            FlowChild(scrollView),
+            FlowChild(tree)
+        ])
+        let progressButton = Button("Animate", frame: Rect(x: 0, y: 0, width: 12, height: 1))
+        let progressPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: max(progressBar.frame.width, progressButton.frame.width), height: 3), axis: .vertical, spacing: FlowSpacing(main: 1), alignment: FlowAlignment(horizontal: .center, vertical: .top), children: [
+            FlowChild(progressBar),
+            FlowChild(progressButton)
+        ])
+        let workerButton = Button(workerButtonTitle, frame: Rect(x: 0, y: 0, width: 14, height: 1))
+        let workerProgress = ProgressBar(frame: Rect(x: 0, y: 0, width: 30, height: 1), value: workerManager.state == .idle ? 0 : workerManager.progress, label: "Worker")
+        let workerPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: max(workerProgress.frame.width, workerButton.frame.width), height: 3), axis: .vertical, spacing: FlowSpacing(main: 1), children: [
+            FlowChild(workerButton),
+            FlowChild(workerProgress)
+        ])
+        let modalButton = Button("Show modal", frame: Rect(x: 0, y: 0, width: 14, height: 1))
+        let commandButton = Button("Commands", frame: Rect(x: 0, y: 0, width: 14, height: 1))
+        let actionsPanel = FlowContainer(frame: Rect(x: 0, y: 0, width: showcaseFrame.width, height: 3), axis: .horizontal, spacing: FlowSpacing(main: 3), children: [
+            FlowChild(modalButton),
+            FlowChild(progressPanel),
+            FlowChild(commandButton),
+            FlowChild(splitClampSwitch),
+            FlowChild(workerPanel)
+        ])
+        let root = FlowContainer(frame: showcaseFrame, axis: .vertical, spacing: FlowSpacing(main: 1), overflow: .hidden, children: [
+            FlowChild(introPanel, preferences: introPanelPreferences),
+            FlowChild(formControls, preferences: formControlsPreferences),
+            FlowChild(labelButtonPanel, preferences: labelButtonPanelPreferences),
+            FlowChild(containerPanel, preferences: containerPanelPreferences),
+            FlowChild(actionsPanel, preferences: actionsPanelPreferences)
+        ])
+        let rootFrames = root.laidOutChildren()
+
+        let formFrame = rootFrames[safe: 1] ?? Rect(x: showcaseFrame.x, y: showcaseFrame.y + 4, width: showcaseFrame.width, height: formHeight)
+        let labelButtonFrame = rootFrames[safe: 2] ?? Rect(x: showcaseFrame.x, y: formFrame.y + formFrame.height + 1, width: showcaseFrame.width, height: 3)
+        let containerFrame = rootFrames[safe: 3] ?? Rect(x: showcaseFrame.x, y: labelButtonFrame.y + labelButtonFrame.height + 1, width: showcaseFrame.width, height: 5)
+        let actionsFrame = rootFrames[safe: 4] ?? Rect(x: showcaseFrame.x, y: containerFrame.y + containerFrame.height + 1, width: showcaseFrame.width, height: 3)
+
+        let formFrames = FlowContainer(frame: formFrame, axis: .horizontal, spacing: FlowSpacing(main: 2), children: [
+            FlowChild(button),
+            FlowChild(textInput),
+            FlowChild(checkbox),
+            FlowChild(toggleSwitch),
+            FlowChild(select)
+        ]).laidOutChildren()
+
+        let labelButtonFrames = FlowContainer(frame: labelButtonFrame, axis: .vertical, spacing: FlowSpacing(main: 1), children: [
+            FlowChild(labelRow, preferences: LayoutPreferences(width: .fill, height: .auto)),
+            FlowChild(buttonRow, preferences: LayoutPreferences(width: .fill, height: .auto))
+        ]).laidOutChildren()
+        let labelFrames = FlowContainer(frame: labelButtonFrames[safe: 0] ?? labelButtonFrame, axis: .horizontal, spacing: FlowSpacing(main: 2), children: demoLabels.map { FlowChild($0) }).laidOutChildren()
+        let demoButtonFrames = FlowContainer(frame: labelButtonFrames[safe: 1] ?? labelButtonFrame, axis: .horizontal, spacing: FlowSpacing(main: 2), children: demoButtons.map { FlowChild($0) }).laidOutChildren()
+
+        let containerFrames = FlowContainer(frame: containerFrame, axis: .horizontal, spacing: FlowSpacing(main: 3), overflow: Overflow(x: .hidden, y: .hidden), children: [
+            FlowChild(vertical),
+            FlowChild(horizontal),
+            FlowChild(dataTable),
+            FlowChild(scrollView),
+            FlowChild(tree)
+        ]).laidOutChildren()
+
+        let actionsFrames = FlowContainer(frame: actionsFrame, axis: .horizontal, spacing: FlowSpacing(main: 3), children: [
+            FlowChild(modalButton),
+            FlowChild(progressPanel),
+            FlowChild(commandButton),
+            FlowChild(splitClampSwitch),
+            FlowChild(workerPanel)
+        ]).laidOutChildren()
+        let progressFrames = FlowContainer(frame: actionsFrames[safe: 1] ?? actionsFrame, axis: .vertical, spacing: FlowSpacing(main: 1), alignment: FlowAlignment(horizontal: .center, vertical: .top), children: [
+            FlowChild(progressBar),
+            FlowChild(progressButton)
+        ]).laidOutChildren()
+        let workerFrames = FlowContainer(frame: actionsFrames[safe: 4] ?? actionsFrame, axis: .vertical, spacing: FlowSpacing(main: 1), children: [
+            FlowChild(workerButton),
+            FlowChild(workerProgress)
+        ]).laidOutChildren()
+
+        return ShowcaseLayout(
+            buttonFrame: formFrames[safe: 0] ?? Rect(x: formFrame.x, y: formFrame.y, width: button.frame.width, height: button.frame.height),
+            textInputFrame: formFrames[safe: 1] ?? Rect(x: formFrame.x, y: formFrame.y, width: textInput.frame.width, height: textInput.frame.height),
+            checkboxFrame: formFrames[safe: 2] ?? Rect(x: formFrame.x, y: formFrame.y, width: checkbox.frame.width, height: checkbox.frame.height),
+            switchFrame: formFrames[safe: 3] ?? Rect(x: formFrame.x, y: formFrame.y, width: toggleSwitch.frame.width, height: toggleSwitch.frame.height),
+            selectFrame: formFrames[safe: 4] ?? Rect(x: formFrame.x, y: formFrame.y, width: select.frame.width, height: select.frame.height),
+            labelFrames: labelFrames,
+            demoButtonFrames: demoButtonFrames,
+            verticalFrame: containerFrames[safe: 0] ?? containerFrame,
+            horizontalFrame: containerFrames[safe: 1] ?? containerFrame,
+            dataTableFrame: containerFrames[safe: 2] ?? containerFrame,
+            scrollViewFrame: containerFrames[safe: 3] ?? containerFrame,
+            treeFrame: containerFrames[safe: 4] ?? containerFrame,
+            modalButtonFrame: actionsFrames[safe: 0] ?? actionsFrame,
+            progressBarFrame: progressFrames[safe: 0] ?? actionsFrame,
+            progressButtonFrame: progressFrames[safe: 1] ?? actionsFrame,
+            commandButtonFrame: actionsFrames[safe: 2] ?? actionsFrame,
+            splitClampSwitchFrame: actionsFrames[safe: 3] ?? actionsFrame,
+            workerButtonFrame: workerFrames[safe: 0] ?? actionsFrame,
+            workerProgressFrame: workerFrames[safe: 1] ?? actionsFrame
+        )
+    }
+
+    private func rect(from preferences: LayoutPreferences, defaultFrame: Rect, parentFrame: Rect) -> Rect {
+        let width = resolved(preferences.width, intrinsic: defaultFrame.width, available: parentFrame.width)
+        let height = resolved(preferences.height, intrinsic: defaultFrame.height, available: parentFrame.height)
+        return Rect(
+            x: defaultFrame.x,
+            y: defaultFrame.y,
+            width: clamp(width, min: preferences.minWidth, max: preferences.maxWidth),
+            height: clamp(height, min: preferences.minHeight, max: preferences.maxHeight)
+        )
+    }
+
+    private func resolved(_ length: LayoutLength, intrinsic: Int, available: Int) -> Int {
+        switch length {
+        case .cells(let value):
+            return value
+        case .fraction, .fill:
+            return available
+        case .percent(let value):
+            return Int((Double(available) * value).rounded(.down))
+        case .auto:
+            return intrinsic
+        }
+    }
+
+    private func clamp(_ value: Int, min minimum: Int, max maximum: Int?) -> Int {
+        Swift.min(Swift.max(0, Swift.max(minimum, value)), maximum ?? Int.max)
+    }
+
+    public static let defaultShowcasePreferences = LayoutPreferences(width: .fill, height: .fill)
+    public static let defaultIntroPanelPreferences = LayoutPreferences(width: .fill, height: .auto)
+    public static let defaultFormControlsPreferences = LayoutPreferences(width: .fill, height: .auto)
+    public static let defaultLabelButtonPanelPreferences = LayoutPreferences(width: .fill, height: .auto)
+    public static let defaultContainerPanelPreferences = LayoutPreferences(width: .fill, height: .auto)
+    public static let defaultActionsPanelPreferences = LayoutPreferences(width: .fill, height: .auto)
 
     public static func defaultDemoLabels() -> [Label] {
         [
@@ -1026,5 +1331,33 @@ public enum MainViewFocus: Equatable, Sendable {
         case .workerButton:
             return .menuBar
         }
+    }
+}
+
+private struct ShowcaseLayout {
+    var buttonFrame: Rect
+    var textInputFrame: Rect
+    var checkboxFrame: Rect
+    var switchFrame: Rect
+    var selectFrame: Rect
+    var labelFrames: [Rect]
+    var demoButtonFrames: [Rect]
+    var verticalFrame: Rect
+    var horizontalFrame: Rect
+    var dataTableFrame: Rect
+    var scrollViewFrame: Rect
+    var treeFrame: Rect
+    var modalButtonFrame: Rect
+    var progressBarFrame: Rect
+    var progressButtonFrame: Rect
+    var commandButtonFrame: Rect
+    var splitClampSwitchFrame: Rect
+    var workerButtonFrame: Rect
+    var workerProgressFrame: Rect
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

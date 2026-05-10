@@ -30,37 +30,40 @@ public struct Vertical: CanvasRenderable {
     public var frame: Rect
     public var spacing: Int
     public var fillStyle: TerminalStyle?
+    public var border: FlowBorder
+    public var borderTitle: String?
+    public var borderSubtitle: String?
     public var children: [AnyCanvasRenderable]
 
     public init(
         frame: Rect,
         spacing: Int = 0,
         fillStyle: TerminalStyle? = nil,
+        border: FlowBorder = .none,
+        borderTitle: String? = nil,
+        borderSubtitle: String? = nil,
         children: [AnyCanvasRenderable]
     ) {
         self.frame = frame
         self.spacing = max(0, spacing)
         self.fillStyle = fillStyle
+        self.border = border
+        self.borderTitle = borderTitle
+        self.borderSubtitle = borderSubtitle
         self.children = children
     }
 
     public func render(in canvas: inout Canvas) {
-        if let fillStyle {
-            canvas.fill(rect: frame, style: fillStyle)
-        }
-
-        var y = frame.y
-        for child in children {
-            guard y < frame.y + frame.height else { return }
-            var placed = child
-            placed.frame = Rect(
-                x: frame.x,
-                y: y,
-                width: min(frame.width, child.frame.width),
-                height: min(child.frame.height, max(0, frame.y + frame.height - y))
-            )
-            placed.render(in: &canvas)
-            y += child.frame.height + spacing
-        }
+        FlowContainer(
+            frame: frame,
+            axis: .vertical,
+            spacing: FlowSpacing(main: spacing),
+            alignment: .topLeading,
+            fillStyle: fillStyle,
+            border: border,
+            borderTitle: borderTitle,
+            borderSubtitle: borderSubtitle,
+            children: children.map { FlowChild($0) }
+        ).render(in: &canvas)
     }
 }

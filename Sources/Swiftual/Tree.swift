@@ -37,6 +37,7 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
     public var branchStyle: TerminalStyle
     public var scrollbarStyle: TerminalStyle
     public var thumbStyle: TerminalStyle
+    public var scrollbarWidth: Int
 
     public init(
         frame: Rect,
@@ -50,7 +51,8 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
         focusedSelectedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
         branchStyle: TerminalStyle = TerminalStyle(foreground: .cyan, background: .black),
         scrollbarStyle: TerminalStyle = TerminalStyle(foreground: .white, background: .brightBlack),
-        thumbStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+        thumbStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
+        scrollbarWidth: Int = 2
     ) {
         self.frame = frame
         self.roots = roots
@@ -64,6 +66,7 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
         self.branchStyle = branchStyle
         self.scrollbarStyle = scrollbarStyle
         self.thumbStyle = thumbStyle
+        self.scrollbarWidth = max(1, scrollbarWidth)
         clampScrollOffset()
     }
 
@@ -103,8 +106,7 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
         case .mouse(let mouse):
             if mouse.button == .left,
                mouse.pressed,
-               showsScrollbar,
-               mouse.location.x >= frame.x + frame.width - scrollbarWidth {
+               isScrollbarLocation(mouse.location) {
                 isFocused = true
                 return scroll(toThumbLocation: mouse.location)
             }
@@ -214,11 +216,17 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
     }
 
     private var contentWidth: Int {
-        max(0, frame.width - (showsScrollbar ? scrollbarWidth : 0))
+        max(0, frame.width - effectiveScrollbarWidth)
     }
 
-    private var scrollbarWidth: Int {
-        2
+    private var effectiveScrollbarWidth: Int {
+        showsScrollbar ? min(max(1, scrollbarWidth), frame.width) : 0
+    }
+
+    private func isScrollbarLocation(_ location: Point) -> Bool {
+        let width = effectiveScrollbarWidth
+        guard width > 0 else { return false }
+        return location.x >= frame.x + frame.width - width && location.x < frame.x + frame.width
     }
 
     private mutating func scroll(by delta: Int) -> TreeCommand {
@@ -261,7 +269,7 @@ public struct Tree: CanvasRenderable, Equatable, Sendable {
 
     private func renderScrollbar(in canvas: inout Canvas) {
         guard showsScrollbar, frame.width > 0 else { return }
-        let width = min(scrollbarWidth, frame.width)
+        let width = effectiveScrollbarWidth
         let x = frame.x + frame.width - width
         canvas.fill(rect: Rect(x: x, y: frame.y, width: width, height: frame.height), style: scrollbarStyle)
 

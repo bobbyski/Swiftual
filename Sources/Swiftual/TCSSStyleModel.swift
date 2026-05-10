@@ -66,6 +66,8 @@ public struct TCSSTerminalStylePatch: Equatable, Sendable {
 public struct TCSSLayoutStyle: Equatable, Sendable {
     public var width: Int?
     public var height: Int?
+    public var widthLength: LayoutLength?
+    public var heightLength: LayoutLength?
     public var minWidth: Int?
     public var minHeight: Int?
     public var maxWidth: Int?
@@ -79,6 +81,8 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public init(
         width: Int? = nil,
         height: Int? = nil,
+        widthLength: LayoutLength? = nil,
+        heightLength: LayoutLength? = nil,
         minWidth: Int? = nil,
         minHeight: Int? = nil,
         maxWidth: Int? = nil,
@@ -91,6 +95,8 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     ) {
         self.width = width
         self.height = height
+        self.widthLength = widthLength ?? width.map { .cells($0) }
+        self.heightLength = heightLength ?? height.map { .cells($0) }
         self.minWidth = minWidth
         self.minHeight = minHeight
         self.maxWidth = maxWidth
@@ -163,9 +169,9 @@ public struct TCSSStyleModelBuilder: Sendable {
             case "inverse":
                 assignBool(declaration, to: \.terminalStyle.inverse, in: &style, diagnostics: &diagnostics)
             case "width":
-                assignInt(declaration, to: \.layout.width, in: &style, diagnostics: &diagnostics)
+                assignLayoutLength(declaration, dimension: .width, in: &style, diagnostics: &diagnostics)
             case "height":
-                assignInt(declaration, to: \.layout.height, in: &style, diagnostics: &diagnostics)
+                assignLayoutLength(declaration, dimension: .height, in: &style, diagnostics: &diagnostics)
             case "min-width":
                 assignInt(declaration, to: \.layout.minWidth, in: &style, diagnostics: &diagnostics)
             case "min-height":
@@ -231,6 +237,35 @@ public struct TCSSStyleModelBuilder: Sendable {
             return
         }
         style[keyPath: keyPath] = value
+    }
+
+    private func assignLayoutLength(
+        _ declaration: TCSSDeclaration,
+        dimension: FlowDimension,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let length = parseLayoutLength(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative length value for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+
+        switch dimension {
+        case .width:
+            style.layout.widthLength = length
+            if case .cells(let value) = length {
+                style.layout.width = value
+            } else {
+                style.layout.width = nil
+            }
+        case .height:
+            style.layout.heightLength = length
+            if case .cells(let value) = length {
+                style.layout.height = value
+            } else {
+                style.layout.height = nil
+            }
+        }
     }
 
     private func assignBoxEdges(
@@ -389,6 +424,26 @@ public struct TCSSStyleModelBuilder: Sendable {
             return Int(value.dropLast(4))
         }
         return Int(value)
+    }
+
+    private func parseLayoutLength(_ raw: String) -> LayoutLength? {
+        let value = canonicalValue(raw)
+        if value == "auto" {
+            return .auto
+        }
+        if value == "fill" {
+            return .fill
+        }
+        if value.hasSuffix("%"), let number = Double(value.dropLast()) {
+            return .percent(number / 100)
+        }
+        if value.hasSuffix("fr"), let number = Double(value.dropLast(2)) {
+            return .fraction(number)
+        }
+        guard let cells = parseInt(value), cells >= 0 else {
+            return nil
+        }
+        return .cells(cells)
     }
 
     private func canonicalPropertyName(_ raw: String) -> String {

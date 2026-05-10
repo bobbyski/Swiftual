@@ -175,12 +175,13 @@ public struct ANSITerminalBackend: TerminalBackend {
     }
 
     public func render(_ canvas: Canvas, device: TerminalDevice) throws {
-        var output = "\u{001B}[?7l\u{001B}[H"
+        var output = "\u{001B}[?7l\u{001B}[2J"
         var currentStyle = TerminalStyle.plain
 
         let rows = canvas.rows()
         for rowIndex in rows.indices {
             let row = rows[rowIndex]
+            output += "\u{001B}[\(rowIndex + 1);1H"
             for cell in row {
                 if cell.style != currentStyle {
                     output += "\u{001B}[0m"
@@ -191,9 +192,6 @@ public struct ANSITerminalBackend: TerminalBackend {
             }
             output += "\u{001B}[0m"
             currentStyle = .plain
-            if rowIndex < rows.count - 1 {
-                output += "\r\n"
-            }
         }
         output += "\u{001B}[?7h"
 

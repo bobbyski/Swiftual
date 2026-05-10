@@ -11,6 +11,7 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
     public var fillStyle: TerminalStyle
     public var scrollbarStyle: TerminalStyle
     public var thumbStyle: TerminalStyle
+    public var scrollbarWidth: Int
 
     public init(
         frame: Rect,
@@ -21,7 +22,8 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
         isFocused: Bool = false,
         fillStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         scrollbarStyle: TerminalStyle = TerminalStyle(foreground: .white, background: .brightBlack),
-        thumbStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
+        thumbStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
+        scrollbarWidth: Int = 2
     ) {
         self.frame = frame
         self.source = source
@@ -32,6 +34,7 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
         self.fillStyle = fillStyle
         self.scrollbarStyle = scrollbarStyle
         self.thumbStyle = thumbStyle
+        self.scrollbarWidth = max(1, scrollbarWidth)
     }
 
     public var contentHeight: Int {
@@ -49,8 +52,7 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
         case .mouse(let mouse):
             if mouse.button == .left,
                mouse.pressed,
-               contentHeight > frame.height,
-               mouse.location.x == frame.x + frame.width - 1 {
+               isScrollbarLocation(mouse.location) {
                 isFocused = true
                 return scroll(toThumbLocation: mouse.location)
             }
@@ -79,7 +81,7 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
         canvas.fill(rect: frame, style: fillStyle)
 
         let lines = highlightedLines
-        let contentWidth = max(0, frame.width - scrollbarWidth)
+        let contentWidth = max(0, frame.width - effectiveScrollbarWidth)
         for rowOffset in 0..<frame.height {
             let contentIndex = scrollOffset + rowOffset
             guard lines.indices.contains(contentIndex) else { break }
@@ -96,8 +98,8 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
             .map(String.init)
     }
 
-    private var scrollbarWidth: Int {
-        contentHeight > frame.height ? 1 : 0
+    private var effectiveScrollbarWidth: Int {
+        contentHeight > frame.height ? min(max(1, scrollbarWidth), frame.width) : 0
     }
 
     private var maxScrollOffset: Int {
@@ -108,6 +110,12 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
         let old = scrollOffset
         scrollOffset = min(max(0, scrollOffset + delta), maxScrollOffset)
         return old == scrollOffset ? .none : .scrolled(scrollOffset)
+    }
+
+    private func isScrollbarLocation(_ location: Point) -> Bool {
+        let width = effectiveScrollbarWidth
+        guard width > 0 else { return false }
+        return location.x >= frame.x + frame.width - width && location.x < frame.x + frame.width
     }
 
     private mutating func scroll(toThumbLocation location: Point) -> ScrollViewCommand {
@@ -122,13 +130,14 @@ public struct SyntaxHighlightedScrollView: CanvasRenderable, Equatable, Sendable
 
     private func renderScrollbar(in canvas: inout Canvas) {
         guard contentHeight > frame.height, frame.width > 0 else { return }
-        let x = frame.x + frame.width - 1
-        canvas.fill(rect: Rect(x: x, y: frame.y, width: 1, height: frame.height), style: scrollbarStyle)
+        let width = effectiveScrollbarWidth
+        let x = frame.x + frame.width - width
+        canvas.fill(rect: Rect(x: x, y: frame.y, width: width, height: frame.height), style: scrollbarStyle)
 
         let thumbHeight = max(1, frame.height * frame.height / max(1, contentHeight))
         let travel = max(0, frame.height - thumbHeight)
         let thumbY = frame.y + (maxScrollOffset == 0 ? 0 : (scrollOffset * travel / maxScrollOffset))
-        canvas.fill(rect: Rect(x: x, y: thumbY, width: 1, height: thumbHeight), style: thumbStyle)
+        canvas.fill(rect: Rect(x: x, y: thumbY, width: width, height: thumbHeight), style: thumbStyle)
     }
 
     private func drawANSILine(_ line: String, at point: Point, width: Int, in canvas: inout Canvas) {

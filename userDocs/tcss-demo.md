@@ -30,9 +30,10 @@ swift run swiftual-tss-demo --vt100
 - `01-current-target.tcss`: scratch/current-step stylesheet for isolating whichever controls we are actively implementing.
 - `02-pseudo-states.tcss`: pseudo-state feature set such as `:focus`, `:checked`, `:on`, `:open`, and `:selected`.
 - `03-combinators.tcss`: child and descendant selector feature set.
-- `04-big.tcss`: absurdly large sizing requests for layout stress testing.
+- `04-big.tcss`: large but bounded sizing requests for layout stress testing.
 - `05-small.tcss`: tiny sizing requests for clipping and minimum-size edge cases.
 - `06-that70sShow.tcss`: intentionally obnoxious bright-color flexibility demo. Never do this, but it is good to know you can.
+- `07-percent-flow.tcss`: percentage and fill-based outer demo layout rules for testing flexible flow containers.
 
 ## Keyboard Behavior
 
@@ -52,7 +53,7 @@ swift run swiftual-tss-demo --vt100
 
 ## Current Scope
 
-The harness currently switches and displays stylesheet source. The parser exists as `TCSSParser`, but the harness does not yet display diagnostics or apply parsed declarations to controls. TCSS files are feature-set tests and should eventually apply to all matching controls. `01-current-target.tcss` is the exception: it is the rolling scratch file for the isolated controls we are targeting in the current implementation step.
+The harness switches stylesheet source, parses it, applies supported declarations to matching controls, and logs the selected file. TCSS files are feature-set tests and apply across the whole control set where Swiftual has implemented the matching style hook. `01-current-target.tcss` is the exception: it is the rolling scratch file for the isolated controls we are targeting in the current implementation step.
 
 ## Test Checklist
 

@@ -22,6 +22,7 @@ let scrollView = ScrollView(
 - `scrollbarStyle`: style used for the scrollbar track.
 - `thumbStyle`: style used for the scrollbar thumb.
 - `contentStyle`: style used for content text.
+- `scrollbarWidth`: scrollbar width in terminal cells, defaulting to `2`. Set it to `1` when a compact scrollbar is preferred.
 
 ## Keyboard Behavior
 
@@ -34,13 +35,14 @@ let scrollView = ScrollView(
 - Mouse wheel down scrolls down one row when inside the frame.
 - Mouse wheel up scrolls up one row when inside the frame.
 - Left click inside the frame focuses the scroll view.
-- Left click or drag on the scrollbar column moves the scroll offset proportionally.
+- Left click or drag on either scrollbar column moves the scroll offset proportionally.
 
 ## Rendering Behavior
 
 - Content rows are clipped to the viewport height.
 - Content text is clipped to leave room for the scrollbar when content overflows.
-- A one-column scrollbar appears when `contentHeight > frame.height`.
+- A two-column scrollbar appears by default when `contentHeight > frame.height`.
+- A one-column scrollbar is available by setting `scrollbarWidth` to `1`.
 - The scrollbar thumb size is proportional to visible rows.
 - The scrollbar thumb position is proportional to `scrollOffset`.
 

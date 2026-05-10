@@ -212,6 +212,24 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
     }
 
     private mutating func applyContainerTCSS(_ cascade: TCSSCascade) {
+        let showcase = cascade.style(for: TCSSStyleContext(typeName: "Showcase"))
+        baseDemo.showcasePreferences = layoutPreferences(from: showcase.layout, fallback: baseDemo.showcasePreferences)
+
+        let introPanel = cascade.style(for: TCSSStyleContext(typeName: "IntroPanel"))
+        baseDemo.introPanelPreferences = layoutPreferences(from: introPanel.layout, fallback: baseDemo.introPanelPreferences)
+
+        let formRow = cascade.style(for: TCSSStyleContext(typeName: "FormRow"))
+        baseDemo.formControlsPreferences = layoutPreferences(from: formRow.layout, fallback: baseDemo.formControlsPreferences)
+
+        let labelButtonPanel = cascade.style(for: TCSSStyleContext(typeName: "LabelButtonPanel"))
+        baseDemo.labelButtonPanelPreferences = layoutPreferences(from: labelButtonPanel.layout, fallback: baseDemo.labelButtonPanelPreferences)
+
+        let containerRow = cascade.style(for: TCSSStyleContext(typeName: "ContainerRow"))
+        baseDemo.containerPanelPreferences = layoutPreferences(from: containerRow.layout, fallback: baseDemo.containerPanelPreferences)
+
+        let actionsRow = cascade.style(for: TCSSStyleContext(typeName: "ActionsRow"))
+        baseDemo.actionsPanelPreferences = layoutPreferences(from: actionsRow.layout, fallback: baseDemo.actionsPanelPreferences)
+
         let vertical = cascade.style(for: TCSSStyleContext(typeName: "Vertical"))
         baseDemo.verticalFillStyle = vertical.terminalStyle.applied(to: baseDemo.verticalFillStyle)
         baseDemo.verticalTitleStyle = vertical.terminalStyle.applied(to: baseDemo.verticalTitleStyle)
@@ -293,6 +311,10 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         baseDemo.scrollView.contentStyle = content.terminalStyle.applied(to: baseDemo.scrollView.contentStyle)
         baseDemo.scrollView.scrollbarStyle = scrollbar.terminalStyle.applied(to: baseDemo.scrollView.scrollbarStyle)
         baseDemo.scrollView.thumbStyle = thumb.terminalStyle.applied(to: baseDemo.scrollView.thumbStyle)
+        if let width = scrollbar.layout.width {
+            baseDemo.scrollView.scrollbarWidth = max(1, width)
+            sourceView.scrollbarWidth = max(1, width)
+        }
         baseDemo.scrollView.frame = apply(scroll.layout, to: baseDemo.scrollView.frame)
         sourceView.fillStyle = scroll.terminalStyle.applied(to: sourceView.fillStyle)
         sourceView.scrollbarStyle = scrollbar.terminalStyle.applied(to: sourceView.scrollbarStyle)
@@ -359,6 +381,9 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         baseDemo.tree.branchStyle = treeBranch.terminalStyle.applied(to: baseDemo.tree.branchStyle)
         baseDemo.tree.scrollbarStyle = scrollbar.terminalStyle.applied(to: baseDemo.tree.scrollbarStyle)
         baseDemo.tree.thumbStyle = thumb.terminalStyle.applied(to: baseDemo.tree.thumbStyle)
+        if let width = scrollbar.layout.width {
+            baseDemo.tree.scrollbarWidth = max(1, width)
+        }
         baseDemo.tree.frame = apply(tree.layout, to: baseDemo.tree.frame)
     }
 
@@ -420,6 +445,18 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         return next
     }
 
+    private func layoutPreferences(from layout: TCSSLayoutStyle, fallback: LayoutPreferences) -> LayoutPreferences {
+        LayoutPreferences(
+            width: layout.widthLength ?? fallback.width,
+            height: layout.heightLength ?? fallback.height,
+            minWidth: layout.minWidth ?? fallback.minWidth,
+            minHeight: layout.minHeight ?? fallback.minHeight,
+            maxWidth: layout.maxWidth ?? fallback.maxWidth,
+            maxHeight: layout.maxHeight ?? fallback.maxHeight,
+            margin: layout.margin.map { BoxEdges(top: $0.top, right: $0.right, bottom: $0.bottom, left: $0.left) } ?? fallback.margin
+        )
+    }
+
     private func textAlignment(from alignment: TCSSTextAlign) -> TextAlignment {
         switch alignment {
         case .left:
@@ -468,6 +505,12 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
         baseDemo.workerProgressTrackStyle = TerminalStyle(foreground: .brightWhite, background: .black)
         baseDemo.workerProgressCompletedStyle = TerminalStyle(foreground: .brightWhite, background: .green, bold: true)
         baseDemo.workerProgressTextStyle = TerminalStyle(foreground: .brightWhite, bold: true)
+        baseDemo.showcasePreferences = MainViewContainer.defaultShowcasePreferences
+        baseDemo.introPanelPreferences = MainViewContainer.defaultIntroPanelPreferences
+        baseDemo.formControlsPreferences = MainViewContainer.defaultFormControlsPreferences
+        baseDemo.labelButtonPanelPreferences = MainViewContainer.defaultLabelButtonPanelPreferences
+        baseDemo.containerPanelPreferences = MainViewContainer.defaultContainerPanelPreferences
+        baseDemo.actionsPanelPreferences = MainViewContainer.defaultActionsPanelPreferences
         sourceView.fillStyle = TerminalStyle(foreground: .brightWhite, background: .black)
         sourceView.scrollbarStyle = TerminalStyle(foreground: .white, background: .brightBlack)
         sourceView.thumbStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true)
@@ -651,28 +694,28 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 fileName: "04-big.tcss",
                 source: """
                 /* Edge case: absurdly large element requests.
-                   This is for parser/model/layout stress testing, not good UI. */
+                   This stays big enough to stress flow without hiding the whole demo. */
                 Button,
                 Label,
                 TextInput,
                 Select,
                 Checkbox,
                 Switch {
-                    width: 120;
-                    height: 8;
-                    padding: 6;
+                    width: 24;
+                    height: 2;
+                    padding: 1;
                 }
 
                 Vertical,
                 Horizontal {
-                    width: 140;
-                    height: 20;
+                    width: 46;
+                    height: 8;
                 }
 
                 Modal {
-                    width: 160;
-                    height: 40;
-                    padding: 8;
+                    width: 72;
+                    height: 12;
+                    padding: 2;
                 }
 
                 ProgressBar,
@@ -682,8 +725,8 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 DataTable,
                 ScrollView,
                 Tree {
-                    width: 180;
-                    height: 30;
+                    width: 48;
+                    height: 8;
                 }
                 """
             ),
@@ -819,6 +862,67 @@ public struct TSSDemoViewContainer: Equatable, Sendable {
                 Tree:selected {
                     background: rgb(255, 193, 7);
                     color: rgb(63, 81, 181);
+                }
+                """
+            ),
+            TSSDemoStylesheet(
+                fileName: "07-percent-flow.tcss",
+                source: """
+                /* Feature set: percentage and fill-style outer layout.
+                   The outer demo rows expand from the available pane instead of hard-coded cells. */
+                Screen {
+                    background: bright-black;
+                    color: bright-white;
+                }
+
+                Showcase {
+                    width: 100%;
+                    height: 100%;
+                }
+
+                IntroPanel {
+                    width: 100%;
+                    height: auto;
+                }
+
+                FormRow {
+                    width: 100%;
+                    height: auto;
+                }
+
+                LabelButtonPanel {
+                    width: 100%;
+                    height: auto;
+                }
+
+                ContainerRow {
+                    width: 100%;
+                    height: 45%;
+                    min-height: 5;
+                }
+
+                ActionsRow {
+                    width: 100%;
+                    height: auto;
+                }
+
+                SplitView {
+                    divider-size: 1;
+                    background: blue;
+                }
+
+                ScrollBar {
+                    width: 2;
+                }
+
+                Vertical,
+                Horizontal,
+                DataTable,
+                ScrollView,
+                Tree,
+                RichLog {
+                    background: black;
+                    color: bright-white;
                 }
                 """
             )

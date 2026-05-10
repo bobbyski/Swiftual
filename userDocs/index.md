@@ -13,6 +13,7 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Label And Static Text](label.md)
 - [Vertical Container](vertical.md)
 - [Horizontal Container](horizontal.md)
+- [Flow Layout](flow-layout.md)
 - [Split View](split-view.md)
 - [Text Input](text-input.md)
 - [Checkbox](checkbox.md)

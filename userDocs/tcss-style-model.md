@@ -63,6 +63,7 @@ Supported colors:
 - `divider-size`: sets both divider dimensions.
 
 Integer values may be plain numbers or use `ch`, `cell`, or `cells` suffixes.
+Width and height may also use `%`, `fr`, `auto`, or `fill`. Cell values populate the legacy integer `width` and `height` fields; percentage, fractional, `auto`, and `fill` values populate `widthLength` and `heightLength` for flow containers to resolve against parent space.
 
 ## Diagnostics
 

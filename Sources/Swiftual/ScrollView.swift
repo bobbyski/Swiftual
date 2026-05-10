@@ -10,6 +10,7 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
     public var thumbStyle: TerminalStyle
     public var content: [String]
     public var contentStyle: TerminalStyle
+    public var scrollbarWidth: Int
 
     public init(
         frame: Rect,
@@ -19,7 +20,8 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
         fillStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         scrollbarStyle: TerminalStyle = TerminalStyle(foreground: .white, background: .brightBlack),
         thumbStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue, bold: true),
-        contentStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black)
+        contentStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        scrollbarWidth: Int = 2
     ) {
         self.frame = frame
         self.content = content
@@ -30,6 +32,7 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
         self.scrollbarStyle = scrollbarStyle
         self.thumbStyle = thumbStyle
         self.contentStyle = contentStyle
+        self.scrollbarWidth = max(1, scrollbarWidth)
     }
 
     public mutating func handle(_ event: InputEvent) -> ScrollViewCommand {
@@ -43,8 +46,7 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
         case .mouse(let mouse):
             if mouse.button == .left,
                mouse.pressed,
-               contentHeight > frame.height,
-               mouse.location.x == frame.x + frame.width - 1 {
+               isScrollbarLocation(mouse.location) {
                 isFocused = true
                 return scroll(toThumbLocation: mouse.location)
             }
@@ -72,7 +74,7 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
         guard frame.width > 0, frame.height > 0 else { return }
         canvas.fill(rect: frame, style: fillStyle)
 
-        let contentWidth = max(0, frame.width - scrollbarWidth)
+        let contentWidth = max(0, frame.width - effectiveScrollbarWidth)
         for rowOffset in 0..<frame.height {
             let contentIndex = scrollOffset + rowOffset
             guard content.indices.contains(contentIndex) else { break }
@@ -83,8 +85,8 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
         renderScrollbar(in: &canvas)
     }
 
-    private var scrollbarWidth: Int {
-        contentHeight > frame.height ? 1 : 0
+    private var effectiveScrollbarWidth: Int {
+        contentHeight > frame.height ? min(max(1, scrollbarWidth), frame.width) : 0
     }
 
     private mutating func scroll(by delta: Int) -> ScrollViewCommand {
@@ -98,7 +100,9 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
     }
 
     private func isScrollbarLocation(_ location: Point) -> Bool {
-        contentHeight > frame.height && location.x == frame.x + frame.width - 1
+        let width = effectiveScrollbarWidth
+        guard width > 0 else { return false }
+        return location.x >= frame.x + frame.width - width && location.x < frame.x + frame.width
     }
 
     private mutating func scroll(toThumbLocation location: Point) -> ScrollViewCommand {
@@ -113,14 +117,15 @@ public struct ScrollView: CanvasRenderable, Equatable, Sendable {
 
     private func renderScrollbar(in canvas: inout Canvas) {
         guard contentHeight > frame.height, frame.width > 0 else { return }
-        let x = frame.x + frame.width - 1
-        let track = Rect(x: x, y: frame.y, width: 1, height: frame.height)
+        let width = effectiveScrollbarWidth
+        let x = frame.x + frame.width - width
+        let track = Rect(x: x, y: frame.y, width: width, height: frame.height)
         canvas.fill(rect: track, style: scrollbarStyle, character: " ")
 
         let thumbHeight = max(1, frame.height * frame.height / max(1, contentHeight))
         let travel = max(0, frame.height - thumbHeight)
         let thumbY = frame.y + (maxScrollOffset == 0 ? 0 : (scrollOffset * travel / maxScrollOffset))
-        canvas.fill(rect: Rect(x: x, y: thumbY, width: 1, height: thumbHeight), style: thumbStyle, character: " ")
+        canvas.fill(rect: Rect(x: x, y: thumbY, width: width, height: thumbHeight), style: thumbStyle, character: " ")
     }
 }
 

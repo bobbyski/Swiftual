@@ -36,6 +36,7 @@ var tree = Tree(
 - `focusedSelectedStyle`: selected row style when focused.
 - `scrollbarStyle`: style used for the two-column scrollbar track when visible rows overflow.
 - `thumbStyle`: style used for the scrollbar thumb.
+- `scrollbarWidth`: scrollbar width in terminal cells, defaulting to `2`. Set it to `1` when a compact tree scrollbar is preferred.
 - `TreeNode.title`: displayed node text.
 - `TreeNode.children`: child nodes.
 - `TreeNode.isExpanded`: whether children are visible.

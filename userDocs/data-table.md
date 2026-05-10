@@ -58,6 +58,23 @@ var table = DataTable(
 - Rows beyond the available body height are clipped.
 - Selection uses the focused or unfocused selection style.
 
+## Future Grid Presentation
+
+The current table should remain the default compact terminal table: header, body rows, and column separators only. A future optional presentation mode should support Rich-style full grid drawing for tables that need a stronger framed look.
+
+This is a DataTable rendering option, not the same thing as the layout `Grid` container. It should reuse Swiftual's border character vocabulary where possible, including single, double, dashed, rounded, and ASCII drawing sets.
+
+Possible future options:
+
+- Minimal separators, the current default.
+- Column separators only.
+- Outer border only.
+- Header rule plus column separators.
+- Full grid with row and column rules.
+- Selectable grid character set.
+
+Grid line backgrounds should continue matching the row, header, or selected row they bisect so styled tables do not show mismatched vertical or horizontal seams.
+
 ## Demo Coverage
 
 The demo renders a compact feature/status table in the upper-right area. Press Tab until the table is focused, use Up/Down to move selection, and press Enter or Space to activate the selected row. Mouse clicks select visible rows. The rich log records selected and activated rows, including the row index and cell values.
@@ -68,6 +85,7 @@ The demo renders a compact feature/status table in the upper-right area. Press T
 - Body rows render below the header.
 - Column separators render.
 - Column separator backgrounds match the current row or header.
+- Future optional full-grid mode renders with selectable box-drawing styles without becoming the default.
 - Selected row uses selection style.
 - Keyboard Up/Down changes selection.
 - Enter and Space activate the selected row.

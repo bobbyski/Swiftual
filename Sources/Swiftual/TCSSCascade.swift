@@ -62,6 +62,8 @@ private struct TCSSPropertyWeights {
     var inverse: TCSSCascadeWeight?
     var width: TCSSCascadeWeight?
     var height: TCSSCascadeWeight?
+    var widthLength: TCSSCascadeWeight?
+    var heightLength: TCSSCascadeWeight?
     var minWidth: TCSSCascadeWeight?
     var minHeight: TCSSCascadeWeight?
     var maxWidth: TCSSCascadeWeight?
@@ -121,6 +123,8 @@ private extension TCSSStyle {
         assign(incoming.terminalStyle.inverse, to: \.terminalStyle.inverse, weight: weight, winning: &terminalWeights.inverse)
         assign(incoming.layout.width, to: \.layout.width, weight: weight, winning: &layoutWeights.width)
         assign(incoming.layout.height, to: \.layout.height, weight: weight, winning: &layoutWeights.height)
+        assign(incoming.layout.widthLength, to: \.layout.widthLength, weight: weight, winning: &layoutWeights.widthLength)
+        assign(incoming.layout.heightLength, to: \.layout.heightLength, weight: weight, winning: &layoutWeights.heightLength)
         assign(incoming.layout.minWidth, to: \.layout.minWidth, weight: weight, winning: &layoutWeights.minWidth)
         assign(incoming.layout.minHeight, to: \.layout.minHeight, weight: weight, winning: &layoutWeights.minHeight)
         assign(incoming.layout.maxWidth, to: \.layout.maxWidth, weight: weight, winning: &layoutWeights.maxWidth)
