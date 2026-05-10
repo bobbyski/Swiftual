@@ -231,6 +231,7 @@ public struct FlowContainer: CanvasRenderable {
     public var border: FlowBorder
     public var borderTitle: String?
     public var borderSubtitle: String?
+    public var viewportSize: TerminalSize?
     public var children: [FlowChild]
 
     public init(
@@ -246,6 +247,7 @@ public struct FlowContainer: CanvasRenderable {
         border: FlowBorder = .none,
         borderTitle: String? = nil,
         borderSubtitle: String? = nil,
+        viewportSize: TerminalSize? = nil,
         children: [FlowChild]
     ) {
         self.frame = frame
@@ -260,6 +262,7 @@ public struct FlowContainer: CanvasRenderable {
         self.border = border
         self.borderTitle = borderTitle
         self.borderSubtitle = borderSubtitle
+        self.viewportSize = viewportSize
         self.children = children
     }
 
@@ -337,8 +340,8 @@ public struct FlowContainer: CanvasRenderable {
             case .cells(let value):
                 lengths[index] = clampMain(value, preferences: child.preferences)
                 remaining -= lengths[index]
-            case .percent(let value):
-                lengths[index] = clampMain(Int((Double(available) * value).rounded(.down)), preferences: child.preferences)
+            case .percent, .containerWidth, .containerHeight, .viewportWidth, .viewportHeight:
+                lengths[index] = clampMain(resolvedLength(length, intrinsic: intrinsic[index], available: available, container: contentFrame), preferences: child.preferences)
                 remaining -= lengths[index]
             case .auto:
                 let value = axis == .vertical ? intrinsic[index].height : intrinsic[index].width
@@ -391,6 +394,14 @@ public struct FlowContainer: CanvasRenderable {
             raw = value
         case .percent(let value):
             raw = Int((Double(available) * value).rounded(.down))
+        case .containerWidth(let value):
+            raw = Int((Double(contentFrame.width) * value).rounded(.down))
+        case .containerHeight(let value):
+            raw = Int((Double(contentFrame.height) * value).rounded(.down))
+        case .viewportWidth(let value):
+            raw = Int((Double(viewportSize?.columns ?? frame.width) * value).rounded(.down))
+        case .viewportHeight(let value):
+            raw = Int((Double(viewportSize?.rows ?? frame.height) * value).rounded(.down))
         case .auto:
             raw = axis == .vertical ? intrinsic.width : intrinsic.height
         case .fraction, .fill:
@@ -445,6 +456,27 @@ public struct FlowContainer: CanvasRenderable {
 
     private func crossLength(for preferences: LayoutPreferences) -> LayoutLength {
         axis == .vertical ? preferences.width : preferences.height
+    }
+
+    private func resolvedLength(_ length: LayoutLength, intrinsic: IntrinsicSize, available: Int, container: Rect) -> Int {
+        switch length {
+        case .cells(let value):
+            return value
+        case .percent(let value):
+            return Int((Double(available) * value).rounded(.down))
+        case .containerWidth(let value):
+            return Int((Double(container.width) * value).rounded(.down))
+        case .containerHeight(let value):
+            return Int((Double(container.height) * value).rounded(.down))
+        case .viewportWidth(let value):
+            return Int((Double(viewportSize?.columns ?? frame.width) * value).rounded(.down))
+        case .viewportHeight(let value):
+            return Int((Double(viewportSize?.rows ?? frame.height) * value).rounded(.down))
+        case .auto:
+            return axis == .vertical ? intrinsic.height : intrinsic.width
+        case .fraction, .fill:
+            return available
+        }
     }
 
     private func clampMain(_ value: Int, preferences: LayoutPreferences) -> Int {

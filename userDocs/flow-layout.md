@@ -94,6 +94,8 @@ Each `FlowChild` can carry `LayoutPreferences`:
 - `.cells(n)`: exact terminal-cell length.
 - `.percent(p)`: percentage of available parent space.
 - `.fraction(n)`: share of remaining main-axis space.
+- `.containerWidth(p)` / `.containerHeight(p)`: Textual-style `w` and `h` scalar units resolved against the container dimensions.
+- `.viewportWidth(p)` / `.viewportHeight(p)`: Textual-style `vw` and `vh` scalar units resolved against an explicit viewport size when available, falling back to the current container frame.
 - `.auto`: use the child renderable's current frame as intrinsic size.
 - `.fill`: consume the available cross axis or remaining main-axis space.
 

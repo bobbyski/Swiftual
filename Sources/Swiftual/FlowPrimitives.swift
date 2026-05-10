@@ -32,6 +32,10 @@ public enum LayoutLength: Equatable, Sendable {
     case cells(Int)
     case fraction(Double)
     case percent(Double)
+    case containerWidth(Double)
+    case containerHeight(Double)
+    case viewportWidth(Double)
+    case viewportHeight(Double)
     case auto
     case fill
 
@@ -42,7 +46,15 @@ public enum LayoutLength: Equatable, Sendable {
         case .fraction(let value):
             .fraction(max(0, value))
         case .percent(let value):
-            .percent(min(1, max(0, value)))
+            .percent(max(0, value))
+        case .containerWidth(let value):
+            .containerWidth(max(0, value))
+        case .containerHeight(let value):
+            .containerHeight(max(0, value))
+        case .viewportWidth(let value):
+            .viewportWidth(max(0, value))
+        case .viewportHeight(let value):
+            .viewportHeight(max(0, value))
         case .auto:
             .auto
         case .fill:

@@ -415,15 +415,15 @@ public struct TCSSStyleModelBuilder: Sendable {
     private func parseInt(_ raw: String) -> Int? {
         let value = canonicalValue(raw)
         if value.hasSuffix("ch") {
-            return Int(value.dropLast(2))
+            return parseCellCount(String(value.dropLast(2)))
         }
         if value.hasSuffix("cells") {
-            return Int(value.dropLast(5))
+            return parseCellCount(String(value.dropLast(5)))
         }
         if value.hasSuffix("cell") {
-            return Int(value.dropLast(4))
+            return parseCellCount(String(value.dropLast(4)))
         }
-        return Int(value)
+        return parseCellCount(value)
     }
 
     private func parseLayoutLength(_ raw: String) -> LayoutLength? {
@@ -433,6 +433,27 @@ public struct TCSSStyleModelBuilder: Sendable {
         }
         if value == "fill" {
             return .fill
+        }
+        if value.hasSuffix("ch"), let cells = parseCellCount(String(value.dropLast(2))) {
+            return .cells(cells)
+        }
+        if value.hasSuffix("cells"), let cells = parseCellCount(String(value.dropLast(5))) {
+            return .cells(cells)
+        }
+        if value.hasSuffix("cell"), let cells = parseCellCount(String(value.dropLast(4))) {
+            return .cells(cells)
+        }
+        if value.hasSuffix("vw"), let number = Double(value.dropLast(2)), number >= 0 {
+            return .viewportWidth(number / 100)
+        }
+        if value.hasSuffix("vh"), let number = Double(value.dropLast(2)), number >= 0 {
+            return .viewportHeight(number / 100)
+        }
+        if value.hasSuffix("w"), let number = Double(value.dropLast()), number >= 0 {
+            return .containerWidth(number / 100)
+        }
+        if value.hasSuffix("h"), let number = Double(value.dropLast()), number >= 0 {
+            return .containerHeight(number / 100)
         }
         if value.hasSuffix("%"), let number = Double(value.dropLast()) {
             return .percent(number / 100)
@@ -444,6 +465,11 @@ public struct TCSSStyleModelBuilder: Sendable {
             return nil
         }
         return .cells(cells)
+    }
+
+    private func parseCellCount(_ raw: String) -> Int? {
+        guard let value = Double(raw), value >= 0 else { return nil }
+        return Int(value.rounded(.towardZero))
     }
 
     private func canonicalPropertyName(_ raw: String) -> String {

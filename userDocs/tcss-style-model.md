@@ -63,7 +63,17 @@ Supported colors:
 - `divider-size`: sets both divider dimensions.
 
 Integer values may be plain numbers or use `ch`, `cell`, or `cells` suffixes.
-Width and height may also use `%`, `fr`, `auto`, or `fill`. Cell values populate the legacy integer `width` and `height` fields; percentage, fractional, `auto`, and `fill` values populate `widthLength` and `heightLength` for flow containers to resolve against parent space.
+Width and height may also use Textual-style scalar units:
+
+- Unitless numbers and `cell`/`cells`/`ch` values become cell counts. Decimal cell values are truncated toward zero, matching Textual's scalar behavior.
+- `%` resolves against the available size on the same axis.
+- `fr` participates in proportional remaining-space distribution.
+- `w` and `h` resolve against the container width or height.
+- `vw` and `vh` resolve against the viewport width or height when a layout container is given a viewport size, otherwise the current container frame is used as the fallback viewport.
+- `auto` uses intrinsic size.
+- `fill` remains a Swiftual extension for filling remaining space when no `fr` children are present.
+
+Cell values populate the legacy integer `width` and `height` fields; non-cell values populate `widthLength` and `heightLength` for flow containers to resolve against parent space.
 
 ## Diagnostics
 
