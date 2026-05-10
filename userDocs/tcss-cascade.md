@@ -41,7 +41,7 @@ Descendant and child combinators are parsed but are not matched by the cascade y
 
 ## Current Demo Application
 
-`swiftual-tss-demo` now applies selected TCSS files to:
+`swiftual-tcss-demo` now applies selected TCSS files to:
 
 - `Screen`, through the base demo background style.
 - `MenuBar`, through the menu bar's Swift style properties.

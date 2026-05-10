@@ -4,25 +4,23 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
-		<key>Swiftual-Package.xcscheme_^#shared#^_</key>
+		<key>Swiftual.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
-		<key>Swiftual.xcscheme_^#shared#^_</key>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>Swiftual</key>
 		<dict>
-			<key>orderHint</key>
-			<integer>1</integer>
+			<key>primary</key>
+			<true/>
 		</dict>
-		<key>swiftual-demo.xcscheme_^#shared#^_</key>
+		<key>SwiftualTests</key>
 		<dict>
-			<key>orderHint</key>
-			<integer>2</integer>
-		</dict>
-		<key>swiftual-tss-demo.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>3</integer>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>

@@ -1,6 +1,8 @@
 # Main View Container
 
-`MainViewContainer` is the current root container for the demo. It owns the menu bar, a grey full-screen body, the demo controls, and a bottom rich-log pane.
+`MainViewContainer` is demo-only code, not framework API. It lives in `Code/SwiftualDemo/Sources/SwiftualDemo` and is duplicated in `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo` as the baseline surface for stylesheet testing.
+
+It owns the menu bar, a grey full-screen body, the demo controls, and a bottom rich-log pane.
 
 ## Behavior
 
@@ -46,6 +48,16 @@ public enum MainViewFocus {
 - Mouse clicks focus and route to the control under the pointer.
 - The modal and command palette render as overlays when active.
 - The rich log records actions but is not currently interactive.
+
+## File Structure
+
+- State and defaults: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer.swift`
+- Keyboard and mouse routing: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer+Input.swift`
+- Rendering: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer+Rendering.swift`
+- Layout: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer+Layout.swift`
+- Rich log messages: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer+Logging.swift`
+- Focus order: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewFocus.swift`
+- Layout result type: `Code/SwiftualDemo/Sources/SwiftualDemo/ShowcaseLayout.swift`
 
 ## Test Checklist
 

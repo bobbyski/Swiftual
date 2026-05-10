@@ -2,10 +2,18 @@
 
 Swiftual is a Swift terminal UI framework. These docs are written as the project grows: each feature page describes the public behavior, options, keyboard and mouse expectations, and the test cases that should keep that behavior stable.
 
+## Current Package Layout
+
+- Framework source lives in `Code/Swiftual/Sources/Swiftual`.
+- Framework docs and deferred issue notes live in `Code/Swiftual/userDocs` and `Code/Swiftual/issues`.
+- The pure Swift demo app lives in `Code/SwiftualDemo/Sources/SwiftualDemo`.
+- The TCSS demo app lives in `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo`.
+- RichSwift is a sibling package at `Code/RichSwift`; Swiftual references it as a dependency rather than including its source.
+
 ## Current Feature Docs
 
 - [Terminal Backends](terminal-backends.md)
-- [Main View Container](main-view-container.md)
+- [Main View Container](main-view-container.md) demo-only harness
 - [Menu Bar](menu-bar.md)
 - [Menu](menu.md)
 - [Menu Item](menu-item.md)
@@ -27,7 +35,7 @@ Swiftual is a Swift terminal UI framework. These docs are written as the project
 - [Tree](tree.md)
 - [Command Palette](command-palette.md)
 - [Worker-Backed Async Task Demo](workers.md)
-- [TCSS/TSS Demo Harness](tcss-demo.md)
+- [TCSS Demo Harness](tcss-demo.md) demo-only harness
 - [TCSS Parser](tcss-parser.md)
 - [TCSS Style Model](tcss-style-model.md)
 - [TCSS Cascade](tcss-cascade.md)

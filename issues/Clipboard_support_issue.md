@@ -53,7 +53,7 @@ Controls likely unaffected except for global shortcuts:
 
 ## Suspect Area 1: Raw Terminal Mode
 
-File: `Sources/Swiftual/Terminal.swift`
+File: `Code/Swiftual/Sources/Swiftual/Terminal.swift`
 
 Function: `FileDescriptorTerminalDevice.enableRawMode()`
 
@@ -89,7 +89,7 @@ Current code:
 
 ## Suspect Area 2: Application And Mouse Modes
 
-File: `Sources/Swiftual/Terminal.swift`
+File: `Code/Swiftual/Sources/Swiftual/Terminal.swift`
 
 Function: `ANSITerminalBackend.enterApplicationMode(device:)`
 
@@ -119,7 +119,7 @@ Possible future change:
 
 ## Suspect Area 3: Input Parser Has No Paste Model
 
-File: `Sources/Swiftual/Input.swift`
+File: `Code/Swiftual/Sources/Swiftual/Input.swift`
 
 Function: `InputParser.parse(_:)`
 
@@ -158,7 +158,7 @@ Current code:
 
 ## Suspect Area 4: TextInput Only Handles Single Characters
 
-File: `Sources/Swiftual/TextInput.swift`
+File: `Code/Swiftual/Sources/Swiftual/TextInput.swift`
 
 Function: `handle(_:)`
 

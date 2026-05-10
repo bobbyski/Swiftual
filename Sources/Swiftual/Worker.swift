@@ -34,7 +34,7 @@ public final class WorkerManager: @unchecked Sendable {
         task?.cancel()
     }
 
-    public func startDemoTask(steps: Int = 10, interval: Duration = .milliseconds(250)) {
+    public func startSteppedTask(steps: Int = 10, interval: Duration = .milliseconds(250)) {
         cancel()
         record(WorkerEvent(state: .running, progress: 0, message: "Worker started."))
         let stepCount = max(1, steps)

@@ -39,7 +39,7 @@ Areas possibly affected:
 
 ## Suspect Area 1: TextInput Event Handling
 
-File: `Sources/Swiftual/TextInput.swift`
+File: `Code/Swiftual/Sources/Swiftual/TextInput.swift`
 
 Function: `handle(_:)`
 
@@ -93,7 +93,7 @@ Current code:
 
 ## Suspect Area 2: TextInput Render Cursor And Viewport
 
-File: `Sources/Swiftual/TextInput.swift`
+File: `Code/Swiftual/Sources/Swiftual/TextInput.swift`
 
 Function: `render(in:)`
 
@@ -132,7 +132,7 @@ Current code:
 
 ## Suspect Area 3: TextInput Viewport Calculation
 
-File: `Sources/Swiftual/TextInput.swift`
+File: `Code/Swiftual/Sources/Swiftual/TextInput.swift`
 
 Function: `visibleStartIndex(contentWidth:)`
 
@@ -164,7 +164,7 @@ Current code:
 
 ## Suspect Area 4: Input Parser
 
-File: `Sources/Swiftual/Input.swift`
+File: `Code/Swiftual/Sources/Swiftual/Input.swift`
 
 Function: `parse(_:)`
 
@@ -207,7 +207,7 @@ Current code:
 
 ## Suspect Area 5: Terminal Raw Read Coalescing
 
-File: `Sources/Swiftual/Terminal.swift`
+File: `Code/Swiftual/Sources/Swiftual/Terminal.swift`
 
 Function: `FileDescriptorTerminalDevice.readInput(maxBytes:)`
 
@@ -242,7 +242,7 @@ Current code:
 
 ## Suspect Area 6: Main View Event Routing
 
-File: `Sources/Swiftual/MenuControls.swift`
+File: `Code/SwiftualDemo/Sources/SwiftualDemo/MainViewContainer+Input.swift`
 
 Function: `MainViewContainer.handle(_:)`
 
@@ -312,4 +312,3 @@ The test suite currently includes passing tests for:
 - Alternate and modified arrow sequences.
 
 Because the live demo still fails, the missing test is likely an integration-style test that mirrors the real terminal read/render loop more closely, or instrumentation that captures the actual byte stream from the terminal.
-

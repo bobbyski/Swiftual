@@ -11,14 +11,6 @@ let package = Package(
         .library(
             name: "Swiftual",
             targets: ["Swiftual"]
-        ),
-        .executable(
-            name: "swiftual-demo",
-            targets: ["SwiftualDemo"]
-        ),
-        .executable(
-            name: "swiftual-tss-demo",
-            targets: ["TSSDemo"]
         )
     ],
     dependencies: [
@@ -28,14 +20,6 @@ let package = Package(
         .target(
             name: "Swiftual",
             dependencies: ["RichSwift"]
-        ),
-        .executableTarget(
-            name: "SwiftualDemo",
-            dependencies: ["Swiftual"]
-        ),
-        .executableTarget(
-            name: "TSSDemo",
-            dependencies: ["Swiftual"]
         ),
         .testTarget(
             name: "SwiftualTests",

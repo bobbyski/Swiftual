@@ -32,6 +32,7 @@ let backend = TerminalDetector.detect(selection: .manual(.vt100))
 The demo also accepts command-line flags:
 
 ```bash
+cd Code/SwiftualDemo
 swift run swiftual-demo --ansi
 swift run swiftual-demo --vt100
 ```
@@ -56,4 +57,3 @@ The ANSI backend currently:
 - Rendering begins from cursor home.
 - Rendering disables and restores auto-wrap.
 - Rendering does not append a trailing newline that scrolls the frame.
-

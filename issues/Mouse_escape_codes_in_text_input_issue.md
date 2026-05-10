@@ -26,7 +26,7 @@ issues/assets/mouse_escape_codes_text_input.png
 
 ![Mouse escape codes inserted into focused text input](assets/mouse_escape_codes_text_input.png)
 
-The screenshot shows `swiftual-tss-demo` with the text input focused and filled with mouse-control fragments. The rich log also repeats `Text input changed:` messages containing the same escape-code fragments.
+The screenshot shows `swiftual-tcss-demo` with the text input focused and filled with mouse-control fragments. The rich log also repeats `Text input changed:` messages containing the same escape-code fragments.
 
 ## Expected Behavior
 
@@ -55,7 +55,7 @@ There is also a secondary hardening issue in `TextInput`:
 
 ## Suspect Area 1: Input Reads Can Split Or Join Escape Sequences
 
-File: `Sources/Swiftual/Terminal.swift`
+File: `Code/Swiftual/Sources/Swiftual/Terminal.swift`
 
 Function: `FileDescriptorTerminalDevice.readInput(maxBytes:)`
 
@@ -91,7 +91,7 @@ Current code:
 
 ## Suspect Area 2: Parser Only Accepts One Complete SGR Mouse Sequence
 
-File: `Sources/Swiftual/Input.swift`
+File: `Code/Swiftual/Sources/Swiftual/Input.swift`
 
 Functions: `parse(_:)` and `parseSGRMouse(_:)`
 
@@ -159,7 +159,7 @@ Current code:
 
 ## Suspect Area 3: TextInput Inserts Any Character Event
 
-File: `Sources/Swiftual/TextInput.swift`
+File: `Code/Swiftual/Sources/Swiftual/TextInput.swift`
 
 Function: `handle(_:)`
 

@@ -1,19 +1,22 @@
-# TCSS/TSS Demo Harness
+# TCSS Demo Harness
 
-`swiftual-tss-demo` is a separate executable for testing optional stylesheet support without disturbing the frozen pure-Swift demo. It duplicates the current showcase and adds a right-side panel for choosing sample TCSS/TSS files.
+`swiftual-tcss-demo` is a separate executable in `Code/SwiftualTCSSDemo` for testing optional stylesheet support without disturbing the frozen pure-Swift demo. It duplicates the current showcase and adds a right-side panel for choosing sample TCSS files.
 
 ## Running
 
 ```bash
-swift run swiftual-tss-demo
+cd Code/SwiftualTCSSDemo
+swift run swiftual-tcss-demo
 ```
 
 Backend selection flags match the normal demo:
 
 ```bash
-swift run swiftual-tss-demo --ansi
-swift run swiftual-tss-demo --vt100
+swift run swiftual-tcss-demo --ansi
+swift run swiftual-tcss-demo --vt100
 ```
+
+The pure Swift baseline demo lives in `Code/SwiftualDemo` and runs with `swift run swiftual-demo`.
 
 ## Layout
 
@@ -51,13 +54,22 @@ swift run swiftual-tss-demo --vt100
 - Drag the blue divider to resize the frozen demo and stylesheet panel.
 - Mouse and keyboard behavior outside the right panel continues to route to the frozen baseline demo.
 
+## File Structure
+
+- App loop: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoApplication.swift`
+- TCSS demo state: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoView.swift`
+- Side-panel input routing: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoView+Input.swift`
+- TCSS application hooks: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoView+StyleApplication.swift`
+- Right-side selector/source panel: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoView+Panel.swift`
+- Built-in sample stylesheets: `Code/SwiftualTCSSDemo/Sources/SwiftualTCSSDemo/TSSDemoView+Stylesheets.swift`
+
 ## Current Scope
 
 The harness switches stylesheet source, parses it, applies supported declarations to matching controls, and logs the selected file. TCSS files are feature-set tests and apply across the whole control set where Swiftual has implemented the matching style hook. `01-current-target.tcss` is the exception: it is the rolling scratch file for the isolated controls we are targeting in the current implementation step.
 
 ## Test Checklist
 
-- `swiftual-tss-demo` builds as a separate executable.
+- `swiftual-tcss-demo` builds as a separate executable.
 - Right-side panel renders without changing `swiftual-demo`.
 - Selector renders available stylesheet file names.
 - Switching the selector updates the source preview.
