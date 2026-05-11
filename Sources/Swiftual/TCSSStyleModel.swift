@@ -10,13 +10,30 @@ public struct TCSSStyleModel: Equatable, Sendable {
     }
 }
 
+public enum TCSSStylesheetSourceKind: String, Equatable, Sendable {
+    case swiftDefaults
+    case file
+    case inline
+    case generated
+    case demo
+}
+
 public struct TCSSStylesheetSource: Equatable, Sendable {
     public var name: String
     public var source: String
+    public var kind: TCSSStylesheetSourceKind
+    public var isEnabled: Bool
 
-    public init(name: String, source: String) {
+    public init(
+        name: String,
+        source: String,
+        kind: TCSSStylesheetSourceKind = .file,
+        isEnabled: Bool = true
+    ) {
         self.name = name
         self.source = source
+        self.kind = kind
+        self.isEnabled = isEnabled
     }
 }
 
@@ -26,6 +43,57 @@ public protocol TCSSStylesheetProviding: Sendable {
 
 extension TCSSStylesheetSource: TCSSStylesheetProviding {
     public var tcssStylesheetSource: TCSSStylesheetSource { self }
+}
+
+public struct TCSSParsedStylesheetSource: Equatable, Sendable {
+    public var source: TCSSStylesheetSource
+    public var stylesheet: TCSSStylesheet
+    public var sourceIndex: Int
+
+    public init(source: TCSSStylesheetSource, stylesheet: TCSSStylesheet, sourceIndex: Int) {
+        self.source = source
+        self.stylesheet = stylesheet
+        self.sourceIndex = sourceIndex
+    }
+}
+
+public struct TCSSStylesheetSourceSet: Equatable, Sendable {
+    public var sources: [TCSSStylesheetSource]
+
+    public init(sources: [TCSSStylesheetSource] = []) {
+        self.sources = sources
+    }
+
+    public init<Provider: TCSSStylesheetProviding>(providers: [Provider]) {
+        self.init(sources: providers.map(\.tcssStylesheetSource))
+    }
+
+    public var enabledSources: [TCSSStylesheetSource] {
+        sources.filter(\.isEnabled)
+    }
+
+    public var enabledSourceNames: [String] {
+        enabledSources.map(\.name)
+    }
+
+    public func parsed(using parser: TCSSParser = TCSSParser()) -> [TCSSParsedStylesheetSource] {
+        enabledSources.enumerated().map { index, source in
+            TCSSParsedStylesheetSource(
+                source: source,
+                stylesheet: parser.parse(source.source),
+                sourceIndex: index
+            )
+        }
+    }
+
+    public func combinedSourcePreview(separator: String = "\n\n") -> String {
+        enabledSources.map { source in
+            """
+            /* ---- \(source.name) ---- */
+            \(source.source)
+            """
+        }.joined(separator: separator)
+    }
 }
 
 public struct TCSSStyleRule: Equatable, Sendable {
@@ -165,6 +233,8 @@ public enum TCSSTextAlign: String, Equatable, Sendable {
 }
 
 public struct TCSSStyleModelBuilder: Sendable {
+    private let valueParser = TCSSValueParser()
+
     public init() {}
 
     public func build(from stylesheet: TCSSStylesheet) -> TCSSStyleModel {
@@ -184,12 +254,13 @@ public struct TCSSStyleModelBuilder: Sendable {
     }
 
     public func parse(_ sources: [TCSSStylesheetSource]) -> TCSSStyleModel {
-        let parser = TCSSParser()
-        return build(
-            from: sources.enumerated().map { index, source in
-                (stylesheet: parser.parse(source.source), source: Optional(source), sourceIndex: index)
-            }
-        )
+        parse(TCSSStylesheetSourceSet(sources: sources))
+    }
+
+    public func parse(_ sourceSet: TCSSStylesheetSourceSet) -> TCSSStyleModel {
+        build(from: sourceSet.parsed().map { parsed in
+            (stylesheet: parsed.stylesheet, source: Optional(parsed.source), sourceIndex: parsed.sourceIndex)
+        })
     }
 
     private func build(
@@ -214,7 +285,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         var style = TCSSStyle()
 
         for declaration in declarations {
-            let property = canonicalPropertyName(declaration.property)
+            let property = valueParser.canonicalPropertyName(declaration.property)
             switch property {
             case "color", "foreground":
                 assignColor(declaration, to: \.terminalStyle.foreground, in: &style, diagnostics: &diagnostics)
@@ -266,7 +337,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        guard let color = parseColor(declaration.value) else {
+        guard let color = valueParser.parseColor(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported color value '\(declaration.value)' for '\(declaration.property)'."))
             return
         }
@@ -279,7 +350,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        guard let value = parseBool(declaration.value) else {
+        guard let value = valueParser.parseBool(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected boolean value for '\(declaration.property)', got '\(declaration.value)'."))
             return
         }
@@ -292,7 +363,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        guard let value = parseInt(declaration.value), value >= 0 else {
+        guard let value = valueParser.parseNonNegativeInt(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative integer value for '\(declaration.property)', got '\(declaration.value)'."))
             return
         }
@@ -305,7 +376,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        guard let length = parseLayoutLength(declaration.value) else {
+        guard let length = valueParser.parseLayoutLength(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative length value for '\(declaration.property)', got '\(declaration.value)'."))
             return
         }
@@ -334,7 +405,7 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        guard let length = parseLayoutLength(declaration.value) else {
+        guard let length = valueParser.parseLayoutLength(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative length value for '\(declaration.property)', got '\(declaration.value)'."))
             return
         }
@@ -347,32 +418,15 @@ public struct TCSSStyleModelBuilder: Sendable {
         in style: inout TCSSStyle,
         diagnostics: inout [TCSSDiagnostic]
     ) {
-        let values = declaration.value
-            .split(whereSeparator: { $0.isWhitespace })
-            .compactMap { parseInt(String($0)) }
-
-        guard !values.isEmpty, values.count <= 4, values.allSatisfy({ $0 >= 0 }) else {
+        guard let edges = valueParser.parseBoxEdges(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one to four non-negative integers for '\(declaration.property)', got '\(declaration.value)'."))
             return
-        }
-
-        let edges: TCSSBoxEdges
-        switch values.count {
-        case 1:
-            edges = TCSSBoxEdges(values[0])
-        case 2:
-            edges = TCSSBoxEdges(top: values[0], right: values[1], bottom: values[0], left: values[1])
-        case 3:
-            edges = TCSSBoxEdges(top: values[0], right: values[1], bottom: values[2], left: values[1])
-        default:
-            edges = TCSSBoxEdges(top: values[0], right: values[1], bottom: values[2], left: values[3])
         }
         style[keyPath: keyPath] = edges
     }
 
     private func assignTextAlign(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
-        let value = canonicalValue(declaration.value)
-        guard let textAlign = TCSSTextAlign(rawValue: value) else {
+        guard let textAlign = valueParser.parseTextAlign(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported text-align value '\(declaration.value)'."))
             return
         }
@@ -380,180 +434,24 @@ public struct TCSSStyleModelBuilder: Sendable {
     }
 
     private func assignTextStyle(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
-        let tokens = declaration.value
-            .split(whereSeparator: { $0.isWhitespace || $0 == "," })
-            .map { canonicalValue(String($0)) }
-
-        guard !tokens.isEmpty else {
+        guard !declaration.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Declaration 'text-style' is missing a value."))
             return
         }
-
-        for token in tokens {
-            switch token {
-            case "bold":
-                style.terminalStyle.bold = true
-            case "inverse", "reverse":
-                style.terminalStyle.inverse = true
-            case "none", "plain", "normal":
-                style.terminalStyle.bold = false
-                style.terminalStyle.inverse = false
-            default:
-                diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported text-style value '\(token)'."))
-            }
+        guard let patch = valueParser.parseTextStylePatch(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported text-style value '\(declaration.value)'."))
+            return
         }
+        style.terminalStyle.bold = patch.bold ?? style.terminalStyle.bold
+        style.terminalStyle.inverse = patch.inverse ?? style.terminalStyle.inverse
     }
 
     private func assignDividerSize(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
-        guard let value = parseInt(declaration.value), value >= 0 else {
+        guard let value = valueParser.parseNonNegativeInt(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected non-negative integer value for '\(declaration.property)', got '\(declaration.value)'."))
             return
         }
         style.layout.dividerWidth = value
         style.layout.dividerHeight = value
-    }
-
-    private func parseColor(_ raw: String) -> TerminalColor? {
-        let value = canonicalValue(raw)
-        switch value {
-        case "black": return .black
-        case "red": return .red
-        case "green": return .green
-        case "yellow": return .yellow
-        case "blue": return .blue
-        case "magenta": return .magenta
-        case "cyan": return .cyan
-        case "white": return .white
-        case "bright-black", "brightblack": return .brightBlack
-        case "bright-white", "brightwhite": return .brightWhite
-        default:
-            break
-        }
-
-        if value.hasPrefix("ansi("), value.hasSuffix(")") {
-            let inner = value.dropFirst(5).dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
-            if let index = Int(inner), index >= 0, index <= 255 {
-                return .ansi(index)
-            }
-        }
-
-        if value.hasPrefix("rgb("), value.hasSuffix(")") {
-            let parts = value.dropFirst(4).dropLast().split(separator: ",").map {
-                $0.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            guard parts.count == 3,
-                  let red = UInt8(parts[0]),
-                  let green = UInt8(parts[1]),
-                  let blue = UInt8(parts[2])
-            else {
-                return nil
-            }
-            return .rgb(red, green, blue)
-        }
-
-        if value.hasPrefix("#") {
-            return parseHexColor(String(value.dropFirst()))
-        }
-
-        return nil
-    }
-
-    private func parseHexColor(_ hex: String) -> TerminalColor? {
-        let expanded: String
-        if hex.count == 3 {
-            expanded = hex.map { "\($0)\($0)" }.joined()
-        } else {
-            expanded = hex
-        }
-
-        guard expanded.count == 6, let value = Int(expanded, radix: 16) else {
-            return nil
-        }
-
-        return .rgb(
-            UInt8((value >> 16) & 0xff),
-            UInt8((value >> 8) & 0xff),
-            UInt8(value & 0xff)
-        )
-    }
-
-    private func parseBool(_ raw: String) -> Bool? {
-        switch canonicalValue(raw) {
-        case "true", "yes", "on", "1": return true
-        case "false", "no", "off", "0": return false
-        default: return nil
-        }
-    }
-
-    private func parseInt(_ raw: String) -> Int? {
-        let value = canonicalValue(raw)
-        if value.hasSuffix("ch") {
-            return parseCellCount(String(value.dropLast(2)))
-        }
-        if value.hasSuffix("cells") {
-            return parseCellCount(String(value.dropLast(5)))
-        }
-        if value.hasSuffix("cell") {
-            return parseCellCount(String(value.dropLast(4)))
-        }
-        return parseCellCount(value)
-    }
-
-    private func parseLayoutLength(_ raw: String) -> LayoutLength? {
-        let value = canonicalValue(raw)
-        if value == "auto" {
-            return .auto
-        }
-        if value == "fill" {
-            return .fill
-        }
-        if value.hasSuffix("ch"), let cells = parseCellCount(String(value.dropLast(2))) {
-            return .cells(cells)
-        }
-        if value.hasSuffix("cells"), let cells = parseCellCount(String(value.dropLast(5))) {
-            return .cells(cells)
-        }
-        if value.hasSuffix("cell"), let cells = parseCellCount(String(value.dropLast(4))) {
-            return .cells(cells)
-        }
-        if value.hasSuffix("vw"), let number = Double(value.dropLast(2)), number >= 0 {
-            return .viewportWidth(number / 100)
-        }
-        if value.hasSuffix("vh"), let number = Double(value.dropLast(2)), number >= 0 {
-            return .viewportHeight(number / 100)
-        }
-        if value.hasSuffix("w"), let number = Double(value.dropLast()), number >= 0 {
-            return .containerWidth(number / 100)
-        }
-        if value.hasSuffix("h"), let number = Double(value.dropLast()), number >= 0 {
-            return .containerHeight(number / 100)
-        }
-        if value.hasSuffix("%"), let number = Double(value.dropLast()) {
-            return .percent(number / 100)
-        }
-        if value.hasSuffix("fr"), let number = Double(value.dropLast(2)) {
-            return .fraction(number)
-        }
-        guard let cells = parseInt(value), cells >= 0 else {
-            return nil
-        }
-        return .cells(cells)
-    }
-
-    private func parseCellCount(_ raw: String) -> Int? {
-        guard let value = Double(raw), value >= 0 else { return nil }
-        return Int(value.rounded(.towardZero))
-    }
-
-    private func canonicalPropertyName(_ raw: String) -> String {
-        raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "_", with: "-")
-    }
-
-    private func canonicalValue(_ raw: String) -> String {
-        raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "_", with: "-")
     }
 }

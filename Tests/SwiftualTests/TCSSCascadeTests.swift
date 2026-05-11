@@ -2,6 +2,25 @@ import XCTest
 @testable import Swiftual
 
 final class TCSSCascadeTests: XCTestCase {
+    func testStylesheetSourceSetCarriesKindEnabledStateAndPreview() {
+        let sourceSet = TCSSStylesheetSourceSet(sources: [
+            TCSSStylesheetSource(name: "defaults", source: "", kind: .swiftDefaults),
+            TCSSStylesheetSource(name: "base.tcss", source: "Button { background: blue; }", kind: .file),
+            TCSSStylesheetSource(name: "disabled.tcss", source: "Button { background: red; }", kind: .generated, isEnabled: false),
+            TCSSStylesheetSource(name: "inline", source: "Button { background: green; }", kind: .inline)
+        ])
+
+        let model = TCSSStyleModelBuilder().parse(sourceSet)
+        let style = TCSSCascade(model: model).style(for: TCSSStyleContext(typeName: "Button"))
+
+        XCTAssertEqual(sourceSet.enabledSourceNames, ["defaults", "base.tcss", "inline"])
+        XCTAssertTrue(sourceSet.combinedSourcePreview().contains("/* ---- base.tcss ---- */"))
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.terminalStyle.background, .green)
+        XCTAssertEqual(model.rules.map(\.sourceName), ["base.tcss", "inline"])
+        XCTAssertEqual(model.rules.map(\.sourceIndex), [1, 2])
+    }
+
     func testMultipleStylesheetSourcesUseDeterministicSourceOrder() {
         let model = TCSSStyleModelBuilder().parse([
             TCSSStylesheetSource(name: "base.tcss", source: """
@@ -61,6 +80,28 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(button.frame.width, 12)
     }
 
+    func testLayoutPreferencesApplicatorPatchesPreferencesAndReportsSpacing() {
+        var preferences = LayoutPreferences(width: .auto, height: .auto, minWidth: .cells(2))
+        let style = TCSSStyle(
+            layout: TCSSLayoutStyle(
+                widthLength: .percent(0.75),
+                minWidth: .cells(10),
+                margin: TCSSBoxEdges(top: 1, right: 2, bottom: 3, left: 4),
+                spacing: 6
+            )
+        )
+        let applicator = TCSSLayoutPreferencesApplicator()
+
+        applicator.apply(style, to: &preferences)
+
+        XCTAssertEqual(preferences.width, .percent(0.75))
+        XCTAssertEqual(preferences.height, .auto)
+        XCTAssertEqual(preferences.minWidth, .cells(10))
+        XCTAssertEqual(preferences.margin, BoxEdges(top: 1, right: 2, bottom: 3, left: 4))
+        XCTAssertEqual(applicator.spacing(from: style, fallback: 1), 6)
+        XCTAssertEqual(applicator.spacing(from: TCSSStyle(), fallback: 1), 1)
+    }
+
     func testLabelApplicatorPatchesAlignmentStyleAndLayout() {
         var label = Label("Name", frame: Rect(x: 0, y: 0, width: 8, height: 1))
         let style = TCSSStyle(
@@ -92,6 +133,29 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(progress.pulseStyle.background, .cyan)
         XCTAssertEqual(progress.textStyle.foreground, .yellow)
         XCTAssertEqual(progress.frame.width, 20)
+    }
+
+    func testProgressStyleSetApplicatorPatchesStylesAndPreferences() {
+        var progress = TCSSProgressStyleSet(
+            trackStyle: TerminalStyle(foreground: .brightWhite, background: .black),
+            completedStyle: TerminalStyle(foreground: .brightWhite, background: .green, bold: true),
+            textStyle: TerminalStyle(foreground: .brightWhite, bold: true),
+            preferences: LayoutPreferences(width: .auto, height: .auto)
+        )
+        let base = TCSSStyle(
+            terminalStyle: TCSSTerminalStylePatch(background: .brightBlack),
+            layout: TCSSLayoutStyle(height: 1, widthLength: .percent(0.5))
+        )
+        let complete = TCSSStyle(terminalStyle: TCSSTerminalStylePatch(background: .cyan))
+        let text = TCSSStyle(terminalStyle: TCSSTerminalStylePatch(foreground: .yellow))
+
+        TCSSProgressStyleSetApplicator(completeStyle: complete, textStyle: text).apply(base, to: &progress)
+
+        XCTAssertEqual(progress.trackStyle.background, .brightBlack)
+        XCTAssertEqual(progress.completedStyle.background, .cyan)
+        XCTAssertEqual(progress.textStyle.foreground, .yellow)
+        XCTAssertEqual(progress.preferences.width, .percent(0.5))
+        XCTAssertEqual(progress.preferences.height, .cells(1))
     }
 
     func testTextInputApplicatorPatchesInputStylesAndLayout() {

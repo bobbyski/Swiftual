@@ -22,8 +22,12 @@ public struct TCSSStyleResolver: TCSSStyleResolving {
         self.init(model: TCSSStyleModelBuilder().parse(sources))
     }
 
+    public init(sourceSet: TCSSStylesheetSourceSet) {
+        self.init(model: TCSSStyleModelBuilder().parse(sourceSet))
+    }
+
     public init<Provider: TCSSStylesheetProviding>(providers: [Provider]) {
-        self.init(sources: providers.map(\.tcssStylesheetSource))
+        self.init(sourceSet: TCSSStylesheetSourceSet(providers: providers))
     }
 
     public var diagnostics: [TCSSDiagnostic] {

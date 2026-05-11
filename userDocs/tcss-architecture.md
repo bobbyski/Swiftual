@@ -8,9 +8,11 @@ This page defines the intended framework boundaries so demo code does not become
 
 ```text
 source text
+  -> TCSSStylesheetSourceSet
   -> TCSSParser
   -> TCSSStylesheet
   -> TCSSStyleModelBuilder
+  -> TCSSValueParser
   -> TCSSStyleModel
   -> TCSSStyleResolver / TCSSCascade
   -> TCSSStyle
@@ -20,16 +22,19 @@ source text
 
 ## Boundaries
 
-- `TCSSStylesheetSource`: names a stylesheet and stores its source text. Source order is deterministic and affects cascade wins when specificity ties.
+- `TCSSStylesheetSource`: names a stylesheet, stores its source text, identifies its kind (`swiftDefaults`, `file`, `inline`, `generated`, or `demo`), and tracks whether it is enabled.
+- `TCSSStylesheetSourceSet`: stores the active source stack, filters disabled sources before parsing, preserves deterministic source order, and can produce a combined source preview for test harnesses or tooling.
 - `TCSSStylesheetProviding`: protocol for objects that can provide a `TCSSStylesheetSource`. Demos, file pickers, generated themes, and app-level theme managers can conform without changing parser or cascade code.
 - `TCSSParser`: raw syntax parser. It should know TCSS grammar, selectors, declarations, comments, and diagnostics. It should not know Swiftual controls.
-- `TCSSStyleModelBuilder`: converts parsed declarations into typed semantic style values. This is where raw strings become colors, lengths, booleans, box edges, text alignment, and future typed TCSS values.
+- `TCSSStyleModelBuilder`: converts parsed declarations into typed semantic style values. It owns declaration-to-property mapping and delegates individual value parsing to `TCSSValueParser`.
+- `TCSSValueParser`: converts raw declaration values into typed semantic values such as colors, booleans, scalar lengths, box edges, text alignment, and text style patches. Future TCSS value families should start here rather than in control code or demo code.
 - `TCSSStyleModel`: stores typed rules plus diagnostics. Rules remember optional source names and source indexes so future diagnostics can point back to the active stylesheet.
 - `TCSSCascade`: applies selector matching, specificity, and source order to produce a `TCSSStyle` for one `TCSSStyleContext`.
 - `TCSSStyleResolver`: public convenience boundary that owns a model and exposes `style(for:)`. Apps should usually depend on this instead of manually wiring parser, builder, and cascade.
 - `TCSSStyleApplying`: protocol for control-specific applicators. A button applicator should know how a `TCSSStyle` maps onto `Button`; the demo harness should not need bespoke knowledge of every control forever.
 - `TCSSLayoutApplicator`: shared conversion from `TCSSLayoutStyle` into control frames and `LayoutPreferences`.
-- `TCSSButtonApplicator`, `TCSSLabelApplicator`, `TCSSProgressBarApplicator`, `TCSSTextInputApplicator`, `TCSSCheckboxApplicator`, `TCSSSwitchApplicator`, `TCSSSelectApplicator`, `TCSSScrollViewApplicator`, `TCSSRichLogApplicator`, `TCSSDataTableApplicator`, `TCSSTreeApplicator`, `TCSSModalApplicator`, `TCSSFlowContainerApplicator`, `TCSSVerticalApplicator`, `TCSSHorizontalApplicator`, and `TCSSCommandPaletteApplicator`: first reusable control applicators. These replaced the matching demo-local styling code and set the pattern for the remaining controls.
+- `TCSSLayoutPreferencesApplicator`: shared conversion from a resolved `TCSSStyle` into standalone `LayoutPreferences` and spacing values for panel-like layout surfaces.
+- `TCSSButtonApplicator`, `TCSSLabelApplicator`, `TCSSProgressBarApplicator`, `TCSSProgressStyleSetApplicator`, `TCSSTextInputApplicator`, `TCSSCheckboxApplicator`, `TCSSSwitchApplicator`, `TCSSSelectApplicator`, `TCSSScrollViewApplicator`, `TCSSRichLogApplicator`, `TCSSDataTableApplicator`, `TCSSTreeApplicator`, `TCSSModalApplicator`, `TCSSFlowContainerApplicator`, `TCSSVerticalApplicator`, `TCSSHorizontalApplicator`, and `TCSSCommandPaletteApplicator`: first reusable control applicators. These replaced the matching demo-local styling code and set the pattern for the remaining controls.
 
 ## Current Source Order Rule
 
@@ -45,6 +50,21 @@ let resolver = TCSSStyleResolver(sources: [
 ```
 
 For `Button`, the resolved background is green because `theme.tcss` is later in source order.
+
+Apps that manage multiple optional sources should prefer a source set:
+
+```swift
+let sourceSet = TCSSStylesheetSourceSet(sources: [
+    TCSSStylesheetSource(name: "defaults", source: "", kind: .swiftDefaults),
+    TCSSStylesheetSource(name: "base.tcss", source: baseSource, kind: .file),
+    TCSSStylesheetSource(name: "generated", source: generatedSource, kind: .generated, isEnabled: false),
+    TCSSStylesheetSource(name: "inline", source: inlineSource, kind: .inline)
+])
+
+let resolver = TCSSStyleResolver(sourceSet: sourceSet)
+```
+
+Disabled sources remain available to the app as state, but they are not parsed or cascaded.
 
 ## Control Application Rule
 
@@ -65,8 +85,10 @@ That keeps styling local to the control and lets alternate demos, app frameworks
 Current reusable applicators:
 
 - `TCSSButtonApplicator`: patches normal, focused, disabled, and frame layout values.
+- `TCSSLayoutPreferencesApplicator`: patches `LayoutPreferences` and exposes resolved spacing for layout-only demo panels or future framework surfaces.
 - `TCSSLabelApplicator`: patches style, frame layout values, and text alignment.
 - `TCSSProgressBarApplicator`: patches track, complete, pulse, text, and frame layout values.
+- `TCSSProgressStyleSetApplicator`: patches track, complete, text, and layout preferences for progress-like surfaces that are not standalone controls yet.
 - `TCSSTextInputApplicator`: patches normal, focused, placeholder, cursor, and frame layout values.
 - `TCSSCheckboxApplicator`: patches normal, focused, checked, focused checked, disabled, and frame layout values.
 - `TCSSSwitchApplicator`: patches off, on, focused off, focused on, disabled, and frame layout values.
@@ -81,7 +103,7 @@ Current reusable applicators:
 - `TCSSHorizontalApplicator`: patches fill, spacing, and frame layout values for `Horizontal`.
 - `TCSSCommandPaletteApplicator`: patches panel, title, input, normal item, highlighted item, disabled item, and frame layout values.
 
-Remaining demo-specific applicators should move over in small passes so each control's mapping can be tested. Worker demo progress and demo panel preferences remain demo-owned for now because they do not yet map cleanly to standalone framework controls.
+Remaining demo-specific applicators should move over in small passes so each control's mapping can be tested. The TCSS demo still owns which panel preference each demo-only selector targets, but the style-to-preference mapping itself now lives in the framework.
 
 ## Reset And Fallback Rule
 
@@ -97,9 +119,11 @@ The current TCSS demo still has demo-specific reset/application code. The next a
 ## Test Checklist
 
 - Multiple stylesheet sources preserve source order.
+- Source sets preserve source kind metadata, omit disabled sources from parsing, and expose enabled source names for diagnostics or UI.
 - Rules retain source name and source index metadata.
 - `TCSSStyleResolver` exposes model diagnostics.
 - `TCSSStyleResolver.style(for:)` returns the same result as `TCSSCascade`.
+- `TCSSValueParser` covers color, boolean, scalar length, box edge, text alignment, and text style conversion directly.
 - Control applicators patch pure Swift defaults rather than replacing unrelated properties.
-- Button, label, progress bar, text input, checkbox, switch, select, scroll view, rich log, data table, tree, modal, flow container, vertical container, horizontal container, and command palette applicators are tested directly.
+- Layout preferences, button, label, progress bar, progress style set, text input, checkbox, switch, select, scroll view, rich log, data table, tree, modal, flow container, vertical container, horizontal container, and command palette applicators are tested directly.
 - Switching active stylesheets starts from defaults and does not leak old values.

@@ -32,6 +32,18 @@ let model = TCSSStyleModelBuilder().parse([
 ])
 ```
 
+For app-level theme stacks, prefer a source set. Source sets keep source kind metadata and can retain disabled/generated sources without letting disabled rules enter the cascade.
+
+```swift
+let sourceSet = TCSSStylesheetSourceSet(sources: [
+    TCSSStylesheetSource(name: "base.tcss", source: baseSource, kind: .file),
+    TCSSStylesheetSource(name: "generated", source: generatedSource, kind: .generated, isEnabled: false),
+    TCSSStylesheetSource(name: "inline", source: inlineSource, kind: .inline)
+])
+
+let model = TCSSStyleModelBuilder().parse(sourceSet)
+```
+
 ## Model Types
 
 - `TCSSStyleModel.rules`: style rules with selectors and typed style data.
@@ -40,7 +52,8 @@ let model = TCSSStyleModelBuilder().parse([
 - `TCSSStyleRule.style`: typed style data.
 - `TCSSStyle.terminalStyle`: optional `TerminalStyle` patch values.
 - `TCSSStyle.layout`: optional layout and future control style values.
-- `TCSSStylesheetSource`: named TCSS source used when parsing multiple active files.
+- `TCSSStylesheetSource`: named TCSS source used when parsing multiple active files. Sources also carry kind metadata and an enabled flag.
+- `TCSSStylesheetSourceSet`: ordered source collection for theme stacks, generated styles, inline overrides, and demo/file-picker inputs.
 - `TCSSTerminalStylePatch.applied(to:)`: overlays declared terminal values on a pure Swift base style.
 
 ## Supported Terminal Style Declarations
@@ -111,4 +124,5 @@ The style model keeps parser diagnostics and adds diagnostics for:
 - The style model does not apply styles to controls yet; cascade and control application are separate steps.
 - `TCSSCascade` resolves model rules for a control context before application.
 - Multiple active stylesheet sources preserve source order.
+- Disabled sources in a `TCSSStylesheetSourceSet` are skipped during parsing and cascade.
 - Multi-class selectors require all listed classes to be present on the style context.

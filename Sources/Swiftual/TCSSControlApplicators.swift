@@ -66,6 +66,22 @@ public struct TCSSLayoutApplicator: Sendable {
     }
 }
 
+public struct TCSSLayoutPreferencesApplicator: TCSSStyleApplying {
+    public var layoutApplicator: TCSSLayoutApplicator
+
+    public init(layoutApplicator: TCSSLayoutApplicator = TCSSLayoutApplicator()) {
+        self.layoutApplicator = layoutApplicator
+    }
+
+    public func apply(_ style: TCSSStyle, to target: inout LayoutPreferences) {
+        target = layoutApplicator.layoutPreferences(from: style.layout, fallback: target)
+    }
+
+    public func spacing(from style: TCSSStyle, fallback: Int) -> Int {
+        style.layout.spacing ?? fallback
+    }
+}
+
 public struct TCSSButtonApplicator: TCSSStyleApplying {
     public var focusedStyle: TCSSStyle
     public var disabledStyle: TCSSStyle
@@ -140,6 +156,48 @@ public struct TCSSProgressBarApplicator: TCSSStyleApplying {
         target.pulseStyle = pulseStyle.terminalStyle.applied(to: target.pulseStyle)
         target.textStyle = textStyle.terminalStyle.applied(to: target.textStyle)
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
+    }
+}
+
+public struct TCSSProgressStyleSet: Equatable, Sendable {
+    public var trackStyle: TerminalStyle
+    public var completedStyle: TerminalStyle
+    public var textStyle: TerminalStyle
+    public var preferences: LayoutPreferences
+
+    public init(
+        trackStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        completedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .green, bold: true),
+        textStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, bold: true),
+        preferences: LayoutPreferences = LayoutPreferences(width: .auto, height: .auto)
+    ) {
+        self.trackStyle = trackStyle
+        self.completedStyle = completedStyle
+        self.textStyle = textStyle
+        self.preferences = preferences
+    }
+}
+
+public struct TCSSProgressStyleSetApplicator: TCSSStyleApplying {
+    public var completeStyle: TCSSStyle
+    public var textStyle: TCSSStyle
+    public var layoutApplicator: TCSSLayoutApplicator
+
+    public init(
+        completeStyle: TCSSStyle = TCSSStyle(),
+        textStyle: TCSSStyle = TCSSStyle(),
+        layoutApplicator: TCSSLayoutApplicator = TCSSLayoutApplicator()
+    ) {
+        self.completeStyle = completeStyle
+        self.textStyle = textStyle
+        self.layoutApplicator = layoutApplicator
+    }
+
+    public func apply(_ style: TCSSStyle, to target: inout TCSSProgressStyleSet) {
+        target.trackStyle = style.terminalStyle.applied(to: target.trackStyle)
+        target.completedStyle = completeStyle.terminalStyle.applied(to: target.completedStyle)
+        target.textStyle = textStyle.terminalStyle.applied(to: target.textStyle)
+        target.preferences = layoutApplicator.layoutPreferences(from: style.layout, fallback: target.preferences)
     }
 }
 
