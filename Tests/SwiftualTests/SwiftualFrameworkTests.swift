@@ -21,4 +21,87 @@ final class SwiftualFrameworkTests: XCTestCase {
         XCTAssertEqual(canvas[3, 1].character, "R")
         XCTAssertEqual(canvas[1, 1].style.background, .brightWhite)
     }
+
+    func testDataTableCompactPresentationRemainsDefault() {
+        var canvas = Canvas(size: TerminalSize(columns: 18, rows: 5))
+        DataTable(
+            frame: Rect(x: 0, y: 0, width: 18, height: 4),
+            columns: [
+                DataTableColumn("A", width: 4),
+                DataTableColumn("B", width: 4)
+            ],
+            rows: [["one", "two"]]
+        ).render(in: &canvas)
+
+        XCTAssertNotEqual(canvas[0, 0].character, "┌")
+        XCTAssertEqual(canvas[4, 0].character, "|")
+        XCTAssertEqual(canvas[0, 1].character, " ")
+    }
+
+    func testDataTableGridPresentationRendersDoubleBoxCharacters() {
+        var canvas = Canvas(size: TerminalSize(columns: 18, rows: 6))
+        DataTable(
+            frame: Rect(x: 0, y: 0, width: 18, height: 5),
+            columns: [
+                DataTableColumn("A", width: 4),
+                DataTableColumn("B", width: 4)
+            ],
+            rows: [["one", "two"]],
+            presentation: .grid(.double)
+        ).render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 0].character, "╔")
+        XCTAssertEqual(canvas[5, 0].character, "╦")
+        XCTAssertEqual(canvas[10, 0].character, "╗")
+        XCTAssertEqual(canvas[0, 2].character, "╠")
+        XCTAssertEqual(canvas[5, 2].character, "╬")
+        XCTAssertEqual(canvas[10, 4].character, "╝")
+    }
+
+    func testDataTableFramedPresentationRendersSolidBorderIntersections() {
+        var canvas = Canvas(size: TerminalSize(columns: 18, rows: 6))
+        DataTable(
+            frame: Rect(x: 0, y: 0, width: 18, height: 5),
+            columns: [
+                DataTableColumn("A", width: 4),
+                DataTableColumn("B", width: 4)
+            ],
+            rows: [["one", "two"]],
+            presentation: .framed(.single)
+        ).render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 0].character, "┌")
+        XCTAssertEqual(canvas[5, 0].character, "┬")
+        XCTAssertEqual(canvas[10, 0].character, "┐")
+        XCTAssertEqual(canvas[0, 2].character, "├")
+        XCTAssertEqual(canvas[5, 2].character, "┼")
+        XCTAssertEqual(canvas[0, 4].character, "└")
+        XCTAssertEqual(canvas[5, 4].character, "┴")
+        XCTAssertEqual(canvas[10, 4].character, "┘")
+        XCTAssertEqual(canvas[5, 1].character, "│")
+        XCTAssertEqual(canvas[5, 3].character, "│")
+    }
+
+    func testDataTableGridLinesUseTheRowStyleTheyBisect() {
+        let selectedStyle = TerminalStyle(foreground: .brightWhite, background: .blue)
+        var canvas = Canvas(size: TerminalSize(columns: 18, rows: 8))
+        DataTable(
+            frame: Rect(x: 0, y: 0, width: 18, height: 7),
+            columns: [
+                DataTableColumn("A", width: 4),
+                DataTableColumn("B", width: 4)
+            ],
+            rows: [
+                ["one", "two"],
+                ["three", "four"]
+            ],
+            selectedRowIndex: 1,
+            selectedRowStyle: selectedStyle,
+            presentation: .grid(.single)
+        ).render(in: &canvas)
+
+        XCTAssertEqual(canvas[0, 5].character, "│")
+        XCTAssertEqual(canvas[0, 5].style.background, selectedStyle.background)
+        XCTAssertEqual(canvas[5, 5].style.background, selectedStyle.background)
+    }
 }

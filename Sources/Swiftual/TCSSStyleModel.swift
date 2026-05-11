@@ -20,15 +20,33 @@ public struct TCSSStylesheetSource: Equatable, Sendable {
     }
 }
 
+public protocol TCSSStylesheetProviding: Sendable {
+    var tcssStylesheetSource: TCSSStylesheetSource { get }
+}
+
+extension TCSSStylesheetSource: TCSSStylesheetProviding {
+    public var tcssStylesheetSource: TCSSStylesheetSource { self }
+}
+
 public struct TCSSStyleRule: Equatable, Sendable {
     public var selectors: [TCSSSelector]
     public var style: TCSSStyle
     public var line: Int
+    public var sourceName: String?
+    public var sourceIndex: Int
 
-    public init(selectors: [TCSSSelector], style: TCSSStyle, line: Int) {
+    public init(
+        selectors: [TCSSSelector],
+        style: TCSSStyle,
+        line: Int,
+        sourceName: String? = nil,
+        sourceIndex: Int = 0
+    ) {
         self.selectors = selectors
         self.style = style
         self.line = line
+        self.sourceName = sourceName
+        self.sourceIndex = sourceIndex
     }
 }
 
@@ -154,17 +172,11 @@ public struct TCSSStyleModelBuilder: Sendable {
     }
 
     public func build(from stylesheets: [TCSSStylesheet]) -> TCSSStyleModel {
-        var diagnostics = stylesheets.flatMap(\.diagnostics)
-        let rules = stylesheets.flatMap { stylesheet in
-            stylesheet.rules.map { rule in
-                TCSSStyleRule(
-                    selectors: rule.selectors,
-                    style: buildStyle(from: rule.declarations, diagnostics: &diagnostics),
-                    line: rule.line
-                )
+        build(
+            from: stylesheets.enumerated().map { index, stylesheet in
+                (stylesheet: stylesheet, source: Optional<TCSSStylesheetSource>.none, sourceIndex: index)
             }
-        }
-        return TCSSStyleModel(rules: rules, diagnostics: diagnostics)
+        )
     }
 
     public func parse(_ source: String) -> TCSSStyleModel {
@@ -173,7 +185,29 @@ public struct TCSSStyleModelBuilder: Sendable {
 
     public func parse(_ sources: [TCSSStylesheetSource]) -> TCSSStyleModel {
         let parser = TCSSParser()
-        return build(from: sources.map { parser.parse($0.source) })
+        return build(
+            from: sources.enumerated().map { index, source in
+                (stylesheet: parser.parse(source.source), source: Optional(source), sourceIndex: index)
+            }
+        )
+    }
+
+    private func build(
+        from entries: [(stylesheet: TCSSStylesheet, source: TCSSStylesheetSource?, sourceIndex: Int)]
+    ) -> TCSSStyleModel {
+        var diagnostics = entries.flatMap(\.stylesheet.diagnostics)
+        let rules = entries.flatMap { entry in
+            entry.stylesheet.rules.map { rule in
+                TCSSStyleRule(
+                    selectors: rule.selectors,
+                    style: buildStyle(from: rule.declarations, diagnostics: &diagnostics),
+                    line: rule.line,
+                    sourceName: entry.source?.name,
+                    sourceIndex: entry.sourceIndex
+                )
+            }
+        }
+        return TCSSStyleModel(rules: rules, diagnostics: diagnostics)
     }
 
     private func buildStyle(from declarations: [TCSSDeclaration], diagnostics: inout [TCSSDiagnostic]) -> TCSSStyle {

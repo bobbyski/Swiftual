@@ -34,6 +34,38 @@ var table = DataTable(
 - `alternateRowStyle`: style used for odd rows.
 - `selectedRowStyle`: style used for selection while unfocused.
 - `focusedSelectedRowStyle`: style used for selection while focused.
+- `presentation`: `.compact` by default, `.framed(...)` for a Rich-style framed table with column intersections, or `.grid(...)` for a full row-and-column grid.
+- `DataTableGridStyle`: selectable grid character presets: `.single`, `.double`, `.rounded`, `.dashed`, and `.ascii`.
+
+```swift
+var gridTable = DataTable(
+    frame: Rect(x: 2, y: 2, width: 40, height: 8),
+    columns: [
+        DataTableColumn("Name", width: 12),
+        DataTableColumn("State", width: 10)
+    ],
+    rows: [
+        ["Menu", "Ready"],
+        ["Button", "Ready"]
+    ],
+    presentation: .grid(.double)
+)
+```
+
+```swift
+var framedTable = DataTable(
+    frame: Rect(x: 2, y: 2, width: 40, height: 8),
+    columns: [
+        DataTableColumn("Name", width: 12),
+        DataTableColumn("State", width: 10)
+    ],
+    rows: [
+        ["Menu", "Ready"],
+        ["Button", "Ready"]
+    ],
+    presentation: .framed(.single)
+)
+```
 
 ## Keyboard Behavior
 
@@ -57,27 +89,29 @@ var table = DataTable(
 - Column separators render between columns using the same background as the row or header they bisect.
 - Rows beyond the available body height are clipped.
 - Selection uses the focused or unfocused selection style.
+- Compact presentation uses one header row and body rows below it.
+- Framed presentation adds a solid outer border, column intersections, and a header separator using the same line vocabulary as layout container borders.
+- Grid presentation adds an outer border, a header separator, vertical column rules, body row separators, and a bottom rule.
+- Grid vertical rules use the same style background as the header, body row, alternate row, or selected row they pass through.
 
-## Future Grid Presentation
+## Grid Presentation
 
-The current table should remain the default compact terminal table: header, body rows, and column separators only. A future optional presentation mode should support Rich-style full grid drawing for tables that need a stronger framed look.
+The current table remains the default compact terminal table: header, body rows, and column separators only. Optional grid presentation supports Rich-style full grid drawing for tables that need a stronger framed look.
 
 This is a DataTable rendering option, not the same thing as the layout `Grid` container. It should reuse Swiftual's border character vocabulary where possible, including single, double, dashed, rounded, and ASCII drawing sets.
 
-Possible future options:
+Current options:
 
 - Minimal separators, the current default.
-- Column separators only.
-- Outer border only.
-- Header rule plus column separators.
-- Full grid with row and column rules.
+- Solid framed table using the same single, double, rounded, dashed, or ASCII border construction as flow containers, with column intersections at top/header/bottom.
+- Full framed grid with row and column rules.
 - Selectable grid character set.
 
 Grid line backgrounds should continue matching the row, header, or selected row they bisect so styled tables do not show mismatched vertical or horizontal seams.
 
 ## Demo Coverage
 
-The demo renders a compact feature/status table in the upper-right area. Press Tab until the table is focused, use Up/Down to move selection, and press Enter or Space to activate the selected row. Mouse clicks select visible rows. The rich log records selected and activated rows, including the row index and cell values.
+The plain Swift demo renders a compact feature/status table in the upper-right area. The TCSS demo renders the same table with framed presentation so the optional box-drawing mode stays visible during stylesheet tests without making the baseline demo too visually busy. Press Tab until the table is focused, use Up/Down to move selection, and press Enter or Space to activate the selected row. Mouse clicks select visible rows. The rich log records selected and activated rows, including the row index and cell values.
 
 ## Test Checklist
 
@@ -85,7 +119,9 @@ The demo renders a compact feature/status table in the upper-right area. Press T
 - Body rows render below the header.
 - Column separators render.
 - Column separator backgrounds match the current row or header.
-- Future optional full-grid mode renders with selectable box-drawing styles without becoming the default.
+- Optional full-grid mode renders with selectable box-drawing styles without becoming the default.
+- Optional framed mode renders with selectable box-drawing styles without becoming the default.
+- Grid line backgrounds match the current row or header.
 - Selected row uses selection style.
 - Keyboard Up/Down changes selection.
 - Enter and Space activate the selected row.
