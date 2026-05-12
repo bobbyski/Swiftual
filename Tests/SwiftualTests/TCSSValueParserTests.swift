@@ -42,9 +42,49 @@ final class TCSSValueParserTests: XCTestCase {
         XCTAssertNil(parser.parseBoxEdges(""))
 
         XCTAssertEqual(parser.parseTextAlign("CENTER"), .center)
-        XCTAssertEqual(parser.parseTextStylePatch("bold inverse"), TCSSTerminalStylePatch(bold: true, inverse: true))
-        XCTAssertEqual(parser.parseTextStylePatch("plain"), TCSSTerminalStylePatch(bold: false, inverse: false))
-        XCTAssertNil(parser.parseTextStylePatch("italic"))
+        XCTAssertEqual(parser.parsePosition("absolute"), .absolute)
+        XCTAssertEqual(parser.parsePosition("relative"), .relative)
+        XCTAssertNil(parser.parsePosition("fixed"))
+        XCTAssertEqual(parser.parseCellOffset("-2"), -2)
+        XCTAssertEqual(parser.parseCellOffset("3ch"), 3)
+        XCTAssertEqual(parser.parseOffset("4 -2"), Point(x: 4, y: -2))
+        XCTAssertNil(parser.parseOffset("4"))
+        XCTAssertEqual(parser.parseOverflowPolicy("scroll"), .scroll)
+        XCTAssertEqual(parser.parseOverflow("auto"), Overflow(x: .auto, y: .auto))
+        XCTAssertEqual(parser.parseOverflow("hidden scroll"), Overflow(x: .hidden, y: .scroll))
+        XCTAssertNil(parser.parseOverflow("hidden scroll visible"))
+        XCTAssertNil(parser.parseOverflow("clip"))
+        XCTAssertEqual(parser.parseBorderKind("solid"), .single)
+        XCTAssertEqual(parser.parseBorderKind("double"), .double)
+        XCTAssertEqual(parser.parseBorderKind("rounded"), .rounded)
+        XCTAssertEqual(parser.parseBorderKind("none"), TCSSBorderKind.none)
+        XCTAssertEqual(parser.parseBorderKind("vector"), .vector)
+        XCTAssertNil(parser.parseBorderKind("sparkly"))
+        XCTAssertEqual(
+            parser.parseTextStylePatch("bold dim italic underline strikethrough inverse blink"),
+            TCSSTerminalStylePatch(
+                bold: true,
+                dim: true,
+                italic: true,
+                underline: true,
+                strikethrough: true,
+                inverse: true,
+                blink: true
+            )
+        )
+        XCTAssertEqual(
+            parser.parseTextStylePatch("plain"),
+            TCSSTerminalStylePatch(
+                bold: false,
+                dim: false,
+                italic: false,
+                underline: false,
+                strikethrough: false,
+                inverse: false,
+                blink: false
+            )
+        )
+        XCTAssertNil(parser.parseTextStylePatch("sparkle"))
     }
 
     func testCanonicalizesPropertyAndValueNames() {
@@ -52,9 +92,61 @@ final class TCSSValueParserTests: XCTestCase {
         XCTAssertEqual(parser.canonicalValue(" Bright_White "), "bright-white")
     }
 
-    func testStyleModelReportsUnsupportedTextStyleValues() {
-        let model = TCSSStyleModelBuilder().parse("Button { text-style: italic; }")
+    func testStyleModelParsesExpandedTerminalStyleProperties() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Label { text-style: italic underline strikethrough dim blink inverse; }
+        Button { bold: true; italic: true; underline: true; blink: false; }
+        """)
 
-        XCTAssertEqual(model.diagnostics.map(\.message), ["Unsupported text-style value 'italic'."])
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.dim, true)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.italic, true)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.underline, true)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.strikethrough, true)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.inverse, true)
+        XCTAssertEqual(model.rules[0].style.terminalStyle.blink, true)
+        XCTAssertEqual(model.rules[1].style.terminalStyle.bold, true)
+        XCTAssertEqual(model.rules[1].style.terminalStyle.italic, true)
+        XCTAssertEqual(model.rules[1].style.terminalStyle.underline, true)
+        XCTAssertEqual(model.rules[1].style.terminalStyle.blink, false)
+    }
+
+    func testStyleModelReportsUnsupportedTextStyleValues() {
+        let model = TCSSStyleModelBuilder().parse("Button { text-style: sparkle; }")
+
+        XCTAssertEqual(model.diagnostics.map(\.message), ["Unsupported text-style value 'sparkle'."])
+    }
+
+    func testStyleModelParsesOverflowProperties() {
+        let model = TCSSStyleModelBuilder().parse("""
+        FlowContainer { overflow: hidden scroll; }
+        Vertical { overflow-x: visible; overflow-y: auto; }
+        """)
+
+        XCTAssertEqual(model.rules[0].style.layout.overflow, Overflow(x: .hidden, y: .scroll))
+        XCTAssertEqual(model.rules[1].style.layout.overflow, Overflow(x: .visible, y: .auto))
+    }
+
+    func testStyleModelParsesBorderKinds() {
+        let model = TCSSStyleModelBuilder().parse("""
+        FlowContainer { border: double; }
+        Vertical { border: none; }
+        Horizontal { border: vector; }
+        """)
+
+        XCTAssertEqual(model.rules[0].style.layout.border, .double)
+        XCTAssertEqual(model.rules[1].style.layout.border, TCSSBorderKind.none)
+        XCTAssertEqual(model.rules[2].style.layout.border, .vector)
+    }
+
+    func testStyleModelParsesPositionAndOffsetProperties() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Panel { position: absolute; offset: 4 -2; }
+        Row { offset-x: -3; offset-y: 8ch; }
+        """)
+
+        XCTAssertEqual(model.rules[0].style.layout.position, .absolute)
+        XCTAssertEqual(model.rules[0].style.layout.offset, Point(x: 4, y: -2))
+        XCTAssertEqual(model.rules[1].style.layout.offset, Point(x: -3, y: 8))
     }
 }

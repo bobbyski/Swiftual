@@ -80,6 +80,35 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(button.frame.width, 12)
     }
 
+    func testStyleLayerResetsToPureSwiftDefaultsBeforeReapplyingTCSS() {
+        let defaultButton = Button("Run", frame: Rect(x: 0, y: 0, width: 6, height: 1))
+        var layer = TCSSStyleLayer(defaultValue: defaultButton)
+
+        layer.apply { button in
+            TCSSButtonApplicator().apply(
+                TCSSStyle(
+                    terminalStyle: TCSSTerminalStylePatch(foreground: .red, background: .green),
+                    layout: TCSSLayoutStyle(width: 12)
+                ),
+                to: &button
+            )
+        }
+        XCTAssertEqual(layer.value.style.foreground, .red)
+        XCTAssertEqual(layer.value.style.background, .green)
+        XCTAssertEqual(layer.value.frame.width, 12)
+
+        layer.resetAndApply { button in
+            TCSSButtonApplicator().apply(
+                TCSSStyle(terminalStyle: TCSSTerminalStylePatch(background: .blue)),
+                to: &button
+            )
+        }
+
+        XCTAssertEqual(layer.value.style.foreground, Button.defaultStyle.foreground)
+        XCTAssertEqual(layer.value.style.background, .blue)
+        XCTAssertEqual(layer.value.frame.width, defaultButton.frame.width)
+    }
+
     func testLayoutPreferencesApplicatorPatchesPreferencesAndReportsSpacing() {
         var preferences = LayoutPreferences(width: .auto, height: .auto, minWidth: .cells(2))
         let style = TCSSStyle(
@@ -393,17 +422,24 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(palette.frame.height, 12)
     }
 
-    func testFlowContainerApplicatorPatchesFillSpacingPaddingAndLayout() {
+    func testFlowContainerApplicatorPatchesFillSpacingPaddingOverflowBorderAndLayout() {
         var container = FlowContainer(
             frame: Rect(x: 0, y: 0, width: 20, height: 8),
             axis: .vertical,
             spacing: FlowSpacing(main: 1),
             padding: BoxEdges(0),
+            overflow: .hidden,
             children: []
         )
         let style = TCSSStyle(
             terminalStyle: TCSSTerminalStylePatch(background: .black),
-            layout: TCSSLayoutStyle(width: 32, padding: TCSSBoxEdges(top: 1, right: 2, bottom: 3, left: 4), spacing: 5)
+            layout: TCSSLayoutStyle(
+                width: 32,
+                padding: TCSSBoxEdges(top: 1, right: 2, bottom: 3, left: 4),
+                overflow: Overflow(x: .visible, y: .auto),
+                border: .double,
+                spacing: 5
+            )
         )
 
         TCSSFlowContainerApplicator().apply(style, to: &container)
@@ -411,7 +447,23 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(container.fillStyle?.background, .black)
         XCTAssertEqual(container.spacing, FlowSpacing(main: 5))
         XCTAssertEqual(container.padding, BoxEdges(top: 1, right: 2, bottom: 3, left: 4))
+        XCTAssertEqual(container.overflow, Overflow(x: .visible, y: .auto))
+        XCTAssertEqual(container.border, .double(style: TerminalStyle(foreground: .brightWhite, background: .black)))
         XCTAssertEqual(container.frame.width, 32)
+    }
+
+    func testVectorBorderCurrentlyAppliesAsNoVisibleBorder() {
+        var container = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: 20, height: 8),
+            axis: .vertical,
+            border: .single(),
+            children: []
+        )
+        let style = TCSSStyle(layout: TCSSLayoutStyle(border: .vector))
+
+        TCSSFlowContainerApplicator().apply(style, to: &container)
+
+        XCTAssertEqual(container.border, .none)
     }
 
     func testVerticalAndHorizontalApplicatorsPatchFillSpacingAndLayout() {
@@ -470,11 +522,59 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(danger.terminalStyle.foreground, .brightWhite)
     }
 
+    func testChildSelectorRequiresDirectParentContext() {
+        let model = TCSSStyleModelBuilder().parse("""
+        MenuBar > Menu { background: green; }
+        MenuBar Menu { color: yellow; }
+        """)
+        let cascade = TCSSCascade(model: model)
+
+        let menuBar = TCSSStyleContextNode(typeName: "MenuBar")
+        let menu = TCSSStyleContext(typeName: "Menu", ancestors: [menuBar])
+        let nestedMenu = TCSSStyleContext(
+            typeName: "Menu",
+            ancestors: [
+                TCSSStyleContextNode(typeName: "Panel"),
+                menuBar
+            ]
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(cascade.style(for: menu).terminalStyle.background, .green)
+        XCTAssertEqual(cascade.style(for: menu).terminalStyle.foreground, .yellow)
+        XCTAssertNil(cascade.style(for: nestedMenu).terminalStyle.background)
+        XCTAssertEqual(cascade.style(for: nestedMenu).terminalStyle.foreground, .yellow)
+    }
+
+    func testDescendantSelectorCanMatchDistantAncestorContext() {
+        let model = TCSSStyleModelBuilder().parse("""
+        ScrollView ScrollBarThumb { background: blue; }
+        DataTable > Header { color: black; }
+        """)
+        let cascade = TCSSCascade(model: model)
+
+        let thumb = TCSSStyleContext(
+            typeName: "ScrollBarThumb",
+            ancestors: [
+                TCSSStyleContextNode(typeName: "ScrollBar"),
+                TCSSStyleContextNode(typeName: "ScrollView")
+            ]
+        )
+        let header = TCSSStyleContext(
+            typeName: "Header",
+            ancestors: [TCSSStyleContextNode(typeName: "DataTable")]
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(cascade.style(for: thumb).terminalStyle.background, .blue)
+        XCTAssertEqual(cascade.style(for: header).terminalStyle.foreground, .black)
+    }
+
     func testTypeClassAndPseudoSpecificityCombine() {
         let model = TCSSStyleModelBuilder().parse("""
-        Button.primary { background: blue; }
-        Button.primary:focus { background: green; text-style: bold; }
-        Button:focus { background: yellow; }
+        Button.primary { background: blue; text-style: italic; }
+        Button.primary:focus { background: green; text-style: bold underline; }
+        Button:focus { background: yellow; text-style: dim; }
         """)
 
         let style = TCSSCascade(model: model).style(
@@ -484,5 +584,8 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertTrue(model.diagnostics.isEmpty)
         XCTAssertEqual(style.terminalStyle.background, .green)
         XCTAssertEqual(style.terminalStyle.bold, true)
+        XCTAssertEqual(style.terminalStyle.underline, true)
+        XCTAssertEqual(style.terminalStyle.italic, true)
+        XCTAssertEqual(style.terminalStyle.dim, true)
     }
 }

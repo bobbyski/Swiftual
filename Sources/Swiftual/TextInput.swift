@@ -11,6 +11,7 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
     public var focusedStyle: TerminalStyle
     public var placeholderStyle: TerminalStyle
     public var cursorStyle: TerminalStyle
+    public var cursorBlinkInterval: TimeInterval
 
     public init(
         text: String = "",
@@ -22,7 +23,8 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
         style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         focusedStyle: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .blue),
         placeholderStyle: TerminalStyle = TerminalStyle(foreground: .white, background: .black),
-        cursorStyle: TerminalStyle = TerminalStyle(foreground: .black, background: .brightWhite, bold: true)
+        cursorStyle: TerminalStyle = TerminalStyle(foreground: .black, background: .brightWhite, bold: true),
+        cursorBlinkInterval: TimeInterval = 0.5
     ) {
         self.frame = frame
         self.text = text
@@ -34,6 +36,7 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
         self.focusedStyle = focusedStyle
         self.placeholderStyle = placeholderStyle
         self.cursorStyle = cursorStyle
+        self.cursorBlinkInterval = cursorBlinkInterval
     }
 
     public mutating func handle(_ event: InputEvent) -> TextInputCommand {
@@ -74,6 +77,10 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
     }
 
     public func render(in canvas: inout Canvas) {
+        render(in: &canvas, now: Date())
+    }
+
+    public func render(in canvas: inout Canvas, now: Date) {
         guard frame.width > 0, frame.height > 0 else { return }
 
         let currentStyle = isFocused ? focusedStyle : style
@@ -102,7 +109,10 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
             let cursorCharacter = displayCursorIndex < text.count
                 ? text[text.index(text.startIndex, offsetBy: displayCursorIndex)]
                 : " "
-            canvas[cursorX, frame.y] = Cell(cursorCharacter, style: cursorStyle)
+            let renderedCursorStyle = cursorShouldHighlight(now: now)
+                ? terminalBlinkRemoved(from: cursorStyle)
+                : currentStyle
+            canvas[cursorX, frame.y] = Cell(cursorCharacter, style: renderedCursorStyle)
         }
     }
 
@@ -126,6 +136,20 @@ public struct TextInput: CanvasRenderable, Equatable, Sendable {
         let start = text.index(text.startIndex, offsetBy: min(startIndex, text.count))
         let suffix = text[start...]
         return String(suffix.prefix(width))
+    }
+
+    private func cursorShouldHighlight(now: Date) -> Bool {
+        guard cursorStyle.blink, cursorBlinkInterval > 0 else {
+            return true
+        }
+        let phase = Int((now.timeIntervalSinceReferenceDate / cursorBlinkInterval).rounded(.down))
+        return phase.isMultiple(of: 2)
+    }
+
+    private func terminalBlinkRemoved(from style: TerminalStyle) -> TerminalStyle {
+        var style = style
+        style.blink = false
+        return style
     }
 
 }

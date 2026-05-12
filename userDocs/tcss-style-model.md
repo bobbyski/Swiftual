@@ -55,14 +55,20 @@ let model = TCSSStyleModelBuilder().parse(sourceSet)
 - `TCSSStylesheetSource`: named TCSS source used when parsing multiple active files. Sources also carry kind metadata and an enabled flag.
 - `TCSSStylesheetSourceSet`: ordered source collection for theme stacks, generated styles, inline overrides, and demo/file-picker inputs.
 - `TCSSTerminalStylePatch.applied(to:)`: overlays declared terminal values on a pure Swift base style.
+- `TCSSStyleLayer`: stores a pure Swift default value plus the currently styled value so callers can reset before applying a new stylesheet stack.
 
 ## Supported Terminal Style Declarations
 
 - `color` / `foreground`: foreground color.
 - `background` / `background-color`: background color.
-- `text-style`: supports `bold`, `inverse`, `reverse`, `none`, `plain`, and `normal`.
+- `text-style`: supports `bold`, `dim`, `italic`, `underline`, `strike`, `strikethrough`, `inverse`, `reverse`, `blink`, `none`, `plain`, and `normal`.
 - `bold`: boolean value.
+- `dim`: boolean value.
+- `italic`: boolean value.
+- `underline`: boolean value.
+- `strike` / `strikethrough`: boolean value.
 - `inverse`: boolean value.
+- `blink`: boolean value.
 
 Supported colors:
 
@@ -81,6 +87,14 @@ Supported colors:
 - `max-height`
 - `padding`
 - `margin`
+- `border`: `none`, `single`/`solid`, `double`, `dashed`, `rounded`, `ascii`, or `vector`.
+- `overflow`: one value applies to both axes; two values apply to x then y.
+- `overflow-x`
+- `overflow-y`
+- `position`: `relative` or `absolute`.
+- `offset`: two signed cell offsets: x then y.
+- `offset-x`
+- `offset-y`
 - `text-align`: `left`, `center`, or `right`.
 - `divider-width`
 - `divider-height`
@@ -100,6 +114,12 @@ Width, height, min-width, min-height, max-width, and max-height may also use Tex
 
 Cell values populate the legacy integer `width` and `height` fields; non-cell values populate `widthLength` and `heightLength` for flow containers to resolve against parent space. Minimum and maximum size constraints use the same scalar value model so TCSS can clamp layouts using cells, percentages, fractions, container units, or viewport units.
 
+Border values currently cover Swiftual's flow-border character presets: `none`, `single`/`solid`, `double`, `dashed`, `rounded`, and `ascii`. `vector` is reserved for the future vector drawing renderer and currently applies as no visible terminal border. The typed model and cascade preserve border declarations, and `TCSSFlowContainerApplicator` applies them to `FlowContainer`.
+
+Overflow values support `visible`, `hidden`, `scroll`, and `auto`. The typed model and cascade preserve overflow declarations, and `TCSSFlowContainerApplicator` applies them to `FlowContainer`. Other wrappers will opt into this as their public APIs grow overflow surfaces.
+
+Position values support `relative` and `absolute`, matching Textual's `position` vocabulary. Offsets currently accept signed cell values such as `4 -2`, `4ch -2ch`, `offset-x: -3`, and `offset-y: 8`. Swiftual parses and cascades these values now, but does not apply them to live layout until the Absolute container and offset behavior are designed.
+
 ## Diagnostics
 
 The style model keeps parser diagnostics and adds diagnostics for:
@@ -113,12 +133,16 @@ The style model keeps parser diagnostics and adds diagnostics for:
 
 ## Test Checklist
 
-- Terminal declarations map to `TCSSTerminalStylePatch`.
+- Terminal declarations map to `TCSSTerminalStylePatch`, including expanded ANSI flags for bold, dim, italic, underline, strikethrough, inverse, and blink.
 - Style patches preserve undeclared base values when applied.
+- `TCSSStyleLayer` resets previous TCSS-applied state before applying a new patch.
 - Hex, RGB, ANSI indexes, and named colors parse correctly.
 - Layout declarations map to typed fields.
 - Scalar layout declarations parse for width, height, and min/max constraints.
 - Flow spacing declarations parse for containers that opt into TCSS-driven child gaps.
+- Border declarations parse to Swiftual flow-border presets.
+- Overflow declarations parse as shorthand and per-axis properties.
+- Position and offset declarations parse and cascade without live layout application yet.
 - Spacing shorthands parse one to four values.
 - Unsupported properties and invalid values report diagnostics.
 - The style model does not apply styles to controls yet; cascade and control application are separate steps.

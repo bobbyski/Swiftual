@@ -24,20 +24,34 @@ let style = cascade.style(
 - `id`: optional `#id` selector value.
 - `classNames`: class names available to `.class` selectors.
 - `pseudoStates`: active pseudo-states such as `focus`, `checked`, or `open`.
+- `ancestors`: nearest-parent-first `TCSSStyleContextNode` values for child and descendant selector matching.
+
+You can build a child context from a parent:
+
+```swift
+let menuBar = TCSSStyleContextNode(typeName: "MenuBar")
+let menu = TCSSStyleContext(typeName: "Menu", ancestors: [menuBar])
+```
+
+Or use `child(...)` when walking a hierarchy:
+
+```swift
+let menu = TCSSStyleContext(typeName: "MenuBar").child(typeName: "Menu")
+```
 
 ## Current Scope
 
-The cascade currently supports single-segment selectors:
+The cascade currently supports:
 
 - Type selectors: `MenuBar`
 - Class selectors: `Label.centered`
 - ID selectors: `Button#primary`
 - Pseudo-state selectors: `Button:focus`
 - Grouped selectors through the parser/model pipeline.
+- Direct child selectors: `MenuBar > Menu`
+- Descendant selectors: `ScrollView ScrollBarThumb`
 
 It resolves conflicts by specificity first, then source order.
-
-Descendant and child combinators are parsed but are not matched by the cascade yet.
 
 ## Current Demo Application
 
@@ -68,7 +82,9 @@ This means selecting `06-that70sShow.tcss` should visibly change the live demo b
 ## Test Checklist
 
 - Type, class, ID, and pseudo-state selectors match contexts.
+- Child selectors require a direct parent in `TCSSStyleContext.ancestors`.
+- Descendant selectors match any later ancestor in `TCSSStyleContext.ancestors`.
 - Higher specificity beats lower specificity.
 - Later source order wins when specificity ties.
 - Switching TCSS files in the demo applies live styles across all current demo controls.
-- Switching back to baseline resets demo styles instead of retaining values from the previous stylesheet.
+- Switching back to baseline resets demo styles through `TCSSStyleLayer` instead of retaining values from the previous stylesheet.

@@ -20,18 +20,33 @@ public struct TerminalStyle: Equatable, Sendable {
     public var foreground: TerminalColor?
     public var background: TerminalColor?
     public var bold: Bool
+    public var dim: Bool
+    public var italic: Bool
+    public var underline: Bool
+    public var strikethrough: Bool
     public var inverse: Bool
+    public var blink: Bool
 
     public init(
         foreground: TerminalColor? = nil,
         background: TerminalColor? = nil,
         bold: Bool = false,
-        inverse: Bool = false
+        dim: Bool = false,
+        italic: Bool = false,
+        underline: Bool = false,
+        strikethrough: Bool = false,
+        inverse: Bool = false,
+        blink: Bool = false
     ) {
         self.foreground = foreground
         self.background = background
         self.bold = bold
+        self.dim = dim
+        self.italic = italic
+        self.underline = underline
+        self.strikethrough = strikethrough
         self.inverse = inverse
+        self.blink = blink
     }
 
     public static let plain = TerminalStyle()
@@ -41,7 +56,12 @@ extension TerminalStyle {
     func ansiPrefix() -> String {
         var codes: [String] = []
         if bold { codes.append("1") }
+        if dim { codes.append("2") }
+        if italic { codes.append("3") }
+        if underline { codes.append("4") }
+        if blink { codes.append("5") }
         if inverse { codes.append("7") }
+        if strikethrough { codes.append("9") }
         if let foreground {
             codes.append(contentsOf: foreground.ansiCodes(background: false))
         }

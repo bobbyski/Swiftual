@@ -104,4 +104,44 @@ final class SwiftualFrameworkTests: XCTestCase {
         XCTAssertEqual(canvas[0, 5].style.background, selectedStyle.background)
         XCTAssertEqual(canvas[5, 5].style.background, selectedStyle.background)
     }
+
+    func testTerminalStyleRendersExpandedAnsiStyleCodes() {
+        let style = TerminalStyle(
+            bold: true,
+            dim: true,
+            italic: true,
+            underline: true,
+            strikethrough: true,
+            inverse: true,
+            blink: true
+        )
+
+        XCTAssertEqual(style.ansiPrefix(), "\u{001B}[1;2;3;4;5;7;9m")
+    }
+
+    func testTextInputBlinkingCursorAlternatesHighlightWithoutTerminalBlink() {
+        let input = TextInput(
+            text: "Swift",
+            frame: Rect(x: 0, y: 0, width: 8, height: 1),
+            cursorIndex: 1,
+            isFocused: true,
+            focusedStyle: TerminalStyle(foreground: .brightWhite, background: .blue),
+            cursorStyle: TerminalStyle(foreground: .black, background: .brightWhite, inverse: true, blink: true),
+            cursorBlinkInterval: 0.5
+        )
+        var highlightedCanvas = Canvas(size: TerminalSize(columns: 8, rows: 1))
+        var plainCanvas = Canvas(size: TerminalSize(columns: 8, rows: 1))
+
+        input.render(in: &highlightedCanvas, now: Date(timeIntervalSinceReferenceDate: 0.1))
+        input.render(in: &plainCanvas, now: Date(timeIntervalSinceReferenceDate: 0.6))
+
+        XCTAssertEqual(highlightedCanvas[2, 0].character, "w")
+        XCTAssertEqual(plainCanvas[2, 0].character, "w")
+        XCTAssertEqual(highlightedCanvas[2, 0].style.background, .brightWhite)
+        XCTAssertEqual(highlightedCanvas[2, 0].style.inverse, true)
+        XCTAssertEqual(highlightedCanvas[2, 0].style.blink, false)
+        XCTAssertEqual(plainCanvas[2, 0].style.background, .blue)
+        XCTAssertEqual(plainCanvas[2, 0].style.inverse, false)
+        XCTAssertEqual(plainCanvas[2, 0].style.blink, false)
+    }
 }

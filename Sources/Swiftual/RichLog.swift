@@ -72,7 +72,12 @@ public struct RichLog: CanvasRenderable, Equatable, Sendable {
             foreground: entry.style.foreground,
             background: entry.style.background ?? fillStyle.background,
             bold: entry.style.bold,
-            inverse: entry.style.inverse
+            dim: entry.style.dim,
+            italic: entry.style.italic,
+            underline: entry.style.underline,
+            strikethrough: entry.style.strikethrough,
+            inverse: entry.style.inverse,
+            blink: entry.style.blink
         )
     }
 }

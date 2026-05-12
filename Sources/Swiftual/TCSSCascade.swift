@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TCSSStyleContext: Equatable, Sendable {
+public struct TCSSStyleContextNode: Equatable, Sendable {
     public var typeName: String
     public var id: String?
     public var classNames: Set<String>
@@ -16,6 +16,63 @@ public struct TCSSStyleContext: Equatable, Sendable {
         self.id = id
         self.classNames = classNames
         self.pseudoStates = pseudoStates
+    }
+}
+
+public struct TCSSStyleContext: Equatable, Sendable {
+    public var node: TCSSStyleContextNode
+    public var ancestors: [TCSSStyleContextNode]
+
+    public init(
+        typeName: String,
+        id: String? = nil,
+        classNames: Set<String> = [],
+        pseudoStates: Set<String> = [],
+        ancestors: [TCSSStyleContextNode] = []
+    ) {
+        self.node = TCSSStyleContextNode(
+            typeName: typeName,
+            id: id,
+            classNames: classNames,
+            pseudoStates: pseudoStates
+        )
+        self.ancestors = ancestors
+    }
+
+    public init(node: TCSSStyleContextNode, ancestors: [TCSSStyleContextNode] = []) {
+        self.node = node
+        self.ancestors = ancestors
+    }
+
+    public var typeName: String {
+        node.typeName
+    }
+
+    public var id: String? {
+        node.id
+    }
+
+    public var classNames: Set<String> {
+        node.classNames
+    }
+
+    public var pseudoStates: Set<String> {
+        node.pseudoStates
+    }
+
+    public func child(
+        typeName: String,
+        id: String? = nil,
+        classNames: Set<String> = [],
+        pseudoStates: Set<String> = []
+    ) -> TCSSStyleContext {
+        TCSSStyleContext(
+            typeName: typeName,
+            id: id,
+            classNames: classNames,
+            pseudoStates: pseudoStates,
+            ancestors: [node] + ancestors
+        )
     }
 }
 
@@ -59,7 +116,12 @@ private struct TCSSPropertyWeights {
     var foreground: TCSSCascadeWeight?
     var background: TCSSCascadeWeight?
     var bold: TCSSCascadeWeight?
+    var dim: TCSSCascadeWeight?
+    var italic: TCSSCascadeWeight?
+    var underline: TCSSCascadeWeight?
+    var strikethrough: TCSSCascadeWeight?
     var inverse: TCSSCascadeWeight?
+    var blink: TCSSCascadeWeight?
     var width: TCSSCascadeWeight?
     var height: TCSSCascadeWeight?
     var widthLength: TCSSCascadeWeight?
@@ -71,6 +133,10 @@ private struct TCSSPropertyWeights {
     var padding: TCSSCascadeWeight?
     var margin: TCSSCascadeWeight?
     var textAlign: TCSSCascadeWeight?
+    var overflow: TCSSCascadeWeight?
+    var border: TCSSCascadeWeight?
+    var position: TCSSCascadeWeight?
+    var offset: TCSSCascadeWeight?
     var dividerWidth: TCSSCascadeWeight?
     var dividerHeight: TCSSCascadeWeight?
     var spacing: TCSSCascadeWeight?
@@ -88,13 +154,38 @@ private extension TCSSSelector {
     }
 
     func matches(_ context: TCSSStyleContext) -> Bool {
-        guard segments.count == 1, let segment = segments.first else { return false }
-        return segment.matches(context)
+        guard let last = segments.last, last.matches(context.node) else { return false }
+        guard segments.count > 1 else { return true }
+
+        var ancestorStart = 0
+        for index in stride(from: segments.count - 1, through: 1, by: -1) {
+            let relationship = segments[index].combinator
+            let ancestorSegment = segments[index - 1]
+
+            switch relationship {
+            case .none:
+                return false
+            case .child:
+                guard context.ancestors.indices.contains(ancestorStart),
+                      ancestorSegment.matches(context.ancestors[ancestorStart])
+                else {
+                    return false
+                }
+                ancestorStart += 1
+            case .descendant:
+                guard let matchIndex = context.ancestors[ancestorStart...].firstIndex(where: { ancestorSegment.matches($0) }) else {
+                    return false
+                }
+                ancestorStart = matchIndex + 1
+            }
+        }
+
+        return true
     }
 }
 
 private extension TCSSSelectorSegment {
-    func matches(_ context: TCSSStyleContext) -> Bool {
+    func matches(_ context: TCSSStyleContextNode) -> Bool {
         if let typeName, typeName != context.typeName {
             return false
         }
@@ -121,7 +212,12 @@ private extension TCSSStyle {
         assign(incoming.terminalStyle.foreground, to: \.terminalStyle.foreground, weight: weight, winning: &terminalWeights.foreground)
         assign(incoming.terminalStyle.background, to: \.terminalStyle.background, weight: weight, winning: &terminalWeights.background)
         assign(incoming.terminalStyle.bold, to: \.terminalStyle.bold, weight: weight, winning: &terminalWeights.bold)
+        assign(incoming.terminalStyle.dim, to: \.terminalStyle.dim, weight: weight, winning: &terminalWeights.dim)
+        assign(incoming.terminalStyle.italic, to: \.terminalStyle.italic, weight: weight, winning: &terminalWeights.italic)
+        assign(incoming.terminalStyle.underline, to: \.terminalStyle.underline, weight: weight, winning: &terminalWeights.underline)
+        assign(incoming.terminalStyle.strikethrough, to: \.terminalStyle.strikethrough, weight: weight, winning: &terminalWeights.strikethrough)
         assign(incoming.terminalStyle.inverse, to: \.terminalStyle.inverse, weight: weight, winning: &terminalWeights.inverse)
+        assign(incoming.terminalStyle.blink, to: \.terminalStyle.blink, weight: weight, winning: &terminalWeights.blink)
         assign(incoming.layout.width, to: \.layout.width, weight: weight, winning: &layoutWeights.width)
         assign(incoming.layout.height, to: \.layout.height, weight: weight, winning: &layoutWeights.height)
         assign(incoming.layout.widthLength, to: \.layout.widthLength, weight: weight, winning: &layoutWeights.widthLength)
@@ -133,6 +229,10 @@ private extension TCSSStyle {
         assign(incoming.layout.padding, to: \.layout.padding, weight: weight, winning: &layoutWeights.padding)
         assign(incoming.layout.margin, to: \.layout.margin, weight: weight, winning: &layoutWeights.margin)
         assign(incoming.layout.textAlign, to: \.layout.textAlign, weight: weight, winning: &layoutWeights.textAlign)
+        assign(incoming.layout.overflow, to: \.layout.overflow, weight: weight, winning: &layoutWeights.overflow)
+        assign(incoming.layout.border, to: \.layout.border, weight: weight, winning: &layoutWeights.border)
+        assign(incoming.layout.position, to: \.layout.position, weight: weight, winning: &layoutWeights.position)
+        assign(incoming.layout.offset, to: \.layout.offset, weight: weight, winning: &layoutWeights.offset)
         assign(incoming.layout.dividerWidth, to: \.layout.dividerWidth, weight: weight, winning: &layoutWeights.dividerWidth)
         assign(incoming.layout.dividerHeight, to: \.layout.dividerHeight, weight: weight, winning: &layoutWeights.dividerHeight)
         assign(incoming.layout.spacing, to: \.layout.spacing, weight: weight, winning: &layoutWeights.spacing)

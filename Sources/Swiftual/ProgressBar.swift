@@ -100,7 +100,12 @@ public struct ProgressBar: CanvasRenderable, Equatable, Sendable {
                     foreground: textStyle.foreground,
                     background: textStyle.background ?? existingStyle.background,
                     bold: textStyle.bold,
-                    inverse: textStyle.inverse
+                    dim: textStyle.dim,
+                    italic: textStyle.italic,
+                    underline: textStyle.underline,
+                    strikethrough: textStyle.strikethrough,
+                    inverse: textStyle.inverse,
+                    blink: textStyle.blink
                 )
                 canvas[column, point.y] = Cell(character, style: style)
             }

@@ -59,6 +59,20 @@ public struct TCSSValueParser: Sendable {
     public func parseNonNegativeInt(_ raw: String) -> Int? {
         let value = canonicalValue(raw)
         if value.hasSuffix("ch") {
+            return parseNonNegativeCellCount(String(value.dropLast(2)))
+        }
+        if value.hasSuffix("cells") {
+            return parseNonNegativeCellCount(String(value.dropLast(5)))
+        }
+        if value.hasSuffix("cell") {
+            return parseNonNegativeCellCount(String(value.dropLast(4)))
+        }
+        return parseNonNegativeCellCount(value)
+    }
+
+    public func parseCellOffset(_ raw: String) -> Int? {
+        let value = canonicalValue(raw)
+        if value.hasSuffix("ch") {
             return parseCellCount(String(value.dropLast(2)))
         }
         if value.hasSuffix("cells") {
@@ -70,6 +84,19 @@ public struct TCSSValueParser: Sendable {
         return parseCellCount(value)
     }
 
+    public func parseOffset(_ raw: String) -> Point? {
+        let tokens = raw
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0) }
+        guard tokens.count == 2,
+              let x = parseCellOffset(tokens[0]),
+              let y = parseCellOffset(tokens[1])
+        else {
+            return nil
+        }
+        return Point(x: x, y: y)
+    }
+
     public func parseLayoutLength(_ raw: String) -> LayoutLength? {
         let value = canonicalValue(raw)
         if value == "auto" {
@@ -78,13 +105,13 @@ public struct TCSSValueParser: Sendable {
         if value == "fill" {
             return .fill
         }
-        if value.hasSuffix("ch"), let cells = parseCellCount(String(value.dropLast(2))) {
+        if value.hasSuffix("ch"), let cells = parseNonNegativeCellCount(String(value.dropLast(2))) {
             return .cells(cells)
         }
-        if value.hasSuffix("cells"), let cells = parseCellCount(String(value.dropLast(5))) {
+        if value.hasSuffix("cells"), let cells = parseNonNegativeCellCount(String(value.dropLast(5))) {
             return .cells(cells)
         }
-        if value.hasSuffix("cell"), let cells = parseCellCount(String(value.dropLast(4))) {
+        if value.hasSuffix("cell"), let cells = parseNonNegativeCellCount(String(value.dropLast(4))) {
             return .cells(cells)
         }
         if value.hasSuffix("vw"), let number = Double(value.dropLast(2)), number >= 0 {
@@ -136,6 +163,51 @@ public struct TCSSValueParser: Sendable {
         TCSSTextAlign(rawValue: canonicalValue(raw))
     }
 
+    public func parsePosition(_ raw: String) -> TCSSPosition? {
+        TCSSPosition(rawValue: canonicalValue(raw))
+    }
+
+    public func parseOverflowPolicy(_ raw: String) -> OverflowPolicy? {
+        switch canonicalValue(raw) {
+        case "visible": return .visible
+        case "hidden": return .hidden
+        case "scroll": return .scroll
+        case "auto": return .auto
+        default: return nil
+        }
+    }
+
+    public func parseOverflow(_ raw: String) -> Overflow? {
+        let tokens = raw
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0) }
+
+        guard !tokens.isEmpty, tokens.count <= 2 else {
+            return nil
+        }
+        guard let first = parseOverflowPolicy(tokens[0]) else {
+            return nil
+        }
+        let second = tokens.count == 2 ? parseOverflowPolicy(tokens[1]) : first
+        guard let second else {
+            return nil
+        }
+        return Overflow(x: first, y: second)
+    }
+
+    public func parseBorderKind(_ raw: String) -> TCSSBorderKind? {
+        switch canonicalValue(raw) {
+        case "none", "hidden": return TCSSBorderKind.none
+        case "single", "solid": return .single
+        case "double", "heavy": return .double
+        case "dashed", "dash": return .dashed
+        case "rounded", "round": return .rounded
+        case "ascii": return .ascii
+        case "vector": return .vector
+        default: return nil
+        }
+    }
+
     public func parseTextStylePatch(_ raw: String) -> TCSSTerminalStylePatch? {
         let tokens = raw
             .split(whereSeparator: { $0.isWhitespace || $0 == "," })
@@ -150,11 +222,26 @@ public struct TCSSValueParser: Sendable {
             switch token {
             case "bold":
                 patch.bold = true
+            case "dim":
+                patch.dim = true
+            case "italic":
+                patch.italic = true
+            case "underline":
+                patch.underline = true
+            case "strike", "strikethrough":
+                patch.strikethrough = true
             case "inverse", "reverse":
                 patch.inverse = true
+            case "blink":
+                patch.blink = true
             case "none", "plain", "normal":
                 patch.bold = false
+                patch.dim = false
+                patch.italic = false
+                patch.underline = false
+                patch.strikethrough = false
                 patch.inverse = false
+                patch.blink = false
             default:
                 return nil
             }
@@ -193,8 +280,13 @@ public struct TCSSValueParser: Sendable {
         )
     }
 
+    private func parseNonNegativeCellCount(_ raw: String) -> Int? {
+        guard let value = parseCellCount(raw), value >= 0 else { return nil }
+        return value
+    }
+
     private func parseCellCount(_ raw: String) -> Int? {
-        guard let value = Double(raw), value >= 0 else { return nil }
+        guard let value = Double(raw) else { return nil }
         return Int(value.rounded(.towardZero))
     }
 }

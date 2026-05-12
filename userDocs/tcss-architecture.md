@@ -27,10 +27,12 @@ source text
 - `TCSSStylesheetProviding`: protocol for objects that can provide a `TCSSStylesheetSource`. Demos, file pickers, generated themes, and app-level theme managers can conform without changing parser or cascade code.
 - `TCSSParser`: raw syntax parser. It should know TCSS grammar, selectors, declarations, comments, and diagnostics. It should not know Swiftual controls.
 - `TCSSStyleModelBuilder`: converts parsed declarations into typed semantic style values. It owns declaration-to-property mapping and delegates individual value parsing to `TCSSValueParser`.
-- `TCSSValueParser`: converts raw declaration values into typed semantic values such as colors, booleans, scalar lengths, box edges, text alignment, and text style patches. Future TCSS value families should start here rather than in control code or demo code.
+- `TCSSValueParser`: converts raw declaration values into typed semantic values such as colors, booleans, scalar lengths, signed offsets, box edges, border kinds, overflow policies, position values, text alignment, and expanded ANSI text style patches. Future TCSS value families should start here rather than in control code or demo code.
 - `TCSSStyleModel`: stores typed rules plus diagnostics. Rules remember optional source names and source indexes so future diagnostics can point back to the active stylesheet.
+- `TCSSStyleContext` and `TCSSStyleContextNode`: describe the styled control plus its nearest-parent-first ancestor path. This is the DOM-light selector matching surface for type, ID, class, pseudo-state, child, and descendant selectors.
 - `TCSSCascade`: applies selector matching, specificity, and source order to produce a `TCSSStyle` for one `TCSSStyleContext`.
 - `TCSSStyleResolver`: public convenience boundary that owns a model and exposes `style(for:)`. Apps should usually depend on this instead of manually wiring parser, builder, and cascade.
+- `TCSSStyleLayer`: tiny reset/fallback helper for state that must start from a pure Swift default before a TCSS patch is applied. It exists so stylesheet changes cannot accidentally inherit values from the previous stylesheet.
 - `TCSSStyleApplying`: protocol for control-specific applicators. A button applicator should know how a `TCSSStyle` maps onto `Button`; the demo harness should not need bespoke knowledge of every control forever.
 - `TCSSLayoutApplicator`: shared conversion from `TCSSLayoutStyle` into control frames and `LayoutPreferences`.
 - `TCSSLayoutPreferencesApplicator`: shared conversion from a resolved `TCSSStyle` into standalone `LayoutPreferences` and spacing values for panel-like layout surfaces.
@@ -98,7 +100,7 @@ Current reusable applicators:
 - `TCSSDataTableApplicator`: patches table row, header, alternate row, selected row, focused selected row, and frame layout values.
 - `TCSSTreeApplicator`: patches fill, row, selected, focused selected, branch, scrollbar, thumb, scrollbar width, and frame layout values.
 - `TCSSModalApplicator`: patches panel, overlay, title, normal button, focused button, disabled button, and frame layout values.
-- `TCSSFlowContainerApplicator`: patches fill, spacing, padding, and frame layout values for the core `FlowContainer`.
+- `TCSSFlowContainerApplicator`: patches fill, spacing, padding, border, overflow, and frame layout values for the core `FlowContainer`. `border: vector` is intentionally accepted but rendered as no terminal border until the vector renderer exists.
 - `TCSSVerticalApplicator`: patches fill, spacing, and frame layout values for `Vertical`.
 - `TCSSHorizontalApplicator`: patches fill, spacing, and frame layout values for `Horizontal`.
 - `TCSSCommandPaletteApplicator`: patches panel, title, input, normal item, highlighted item, disabled item, and frame layout values.
@@ -114,7 +116,17 @@ When active stylesheet sources change:
 - Apply only the properties present in the resolved patch.
 - Do not let old TCSS-applied values leak into the next stylesheet selection.
 
-The current TCSS demo still has demo-specific reset/application code. The next architecture step should move that behavior into reusable applicators.
+`TCSSStyleLayer` captures that rule for reusable state:
+
+```swift
+var layer = TCSSStyleLayer(defaultValue: Button.defaultStyle, value: button.style)
+layer.resetAndApply { style in
+    style = patch.applied(to: style)
+}
+button.style = layer.value
+```
+
+The TCSS demo uses this helper while resetting demo-owned surfaces before applying the newly selected source stack. Framework controls should still prefer typed applicators for actual style mapping; the layer is the guardrail that keeps fallback state explicit.
 
 ## Test Checklist
 
@@ -123,7 +135,9 @@ The current TCSS demo still has demo-specific reset/application code. The next a
 - Rules retain source name and source index metadata.
 - `TCSSStyleResolver` exposes model diagnostics.
 - `TCSSStyleResolver.style(for:)` returns the same result as `TCSSCascade`.
-- `TCSSValueParser` covers color, boolean, scalar length, box edge, text alignment, and text style conversion directly.
+- `TCSSStyleContext` ancestor paths let child selectors require a direct parent and descendant selectors match deeper ancestors.
+- `TCSSValueParser` covers color, boolean, scalar length, signed offset, box edge, border, overflow, position, text alignment, and text style conversion directly.
 - Control applicators patch pure Swift defaults rather than replacing unrelated properties.
 - Layout preferences, button, label, progress bar, progress style set, text input, checkbox, switch, select, scroll view, rich log, data table, tree, modal, flow container, vertical container, horizontal container, and command palette applicators are tested directly.
+- `TCSSStyleLayer` resets to pure Swift defaults before reapplying a different TCSS patch.
 - Switching active stylesheets starts from defaults and does not leak old values.

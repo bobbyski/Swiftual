@@ -135,18 +135,33 @@ public struct TCSSTerminalStylePatch: Equatable, Sendable {
     public var foreground: TerminalColor?
     public var background: TerminalColor?
     public var bold: Bool?
+    public var dim: Bool?
+    public var italic: Bool?
+    public var underline: Bool?
+    public var strikethrough: Bool?
     public var inverse: Bool?
+    public var blink: Bool?
 
     public init(
         foreground: TerminalColor? = nil,
         background: TerminalColor? = nil,
         bold: Bool? = nil,
-        inverse: Bool? = nil
+        dim: Bool? = nil,
+        italic: Bool? = nil,
+        underline: Bool? = nil,
+        strikethrough: Bool? = nil,
+        inverse: Bool? = nil,
+        blink: Bool? = nil
     ) {
         self.foreground = foreground
         self.background = background
         self.bold = bold
+        self.dim = dim
+        self.italic = italic
+        self.underline = underline
+        self.strikethrough = strikethrough
         self.inverse = inverse
+        self.blink = blink
     }
 
     public func applied(to base: TerminalStyle) -> TerminalStyle {
@@ -154,7 +169,12 @@ public struct TCSSTerminalStylePatch: Equatable, Sendable {
             foreground: foreground ?? base.foreground,
             background: background ?? base.background,
             bold: bold ?? base.bold,
-            inverse: inverse ?? base.inverse
+            dim: dim ?? base.dim,
+            italic: italic ?? base.italic,
+            underline: underline ?? base.underline,
+            strikethrough: strikethrough ?? base.strikethrough,
+            inverse: inverse ?? base.inverse,
+            blink: blink ?? base.blink
         )
     }
 }
@@ -171,6 +191,10 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public var padding: TCSSBoxEdges?
     public var margin: TCSSBoxEdges?
     public var textAlign: TCSSTextAlign?
+    public var overflow: Overflow?
+    public var border: TCSSBorderKind?
+    public var position: TCSSPosition?
+    public var offset: Point?
     public var dividerWidth: Int?
     public var dividerHeight: Int?
     public var spacing: Int?
@@ -187,6 +211,10 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         padding: TCSSBoxEdges? = nil,
         margin: TCSSBoxEdges? = nil,
         textAlign: TCSSTextAlign? = nil,
+        overflow: Overflow? = nil,
+        border: TCSSBorderKind? = nil,
+        position: TCSSPosition? = nil,
+        offset: Point? = nil,
         dividerWidth: Int? = nil,
         dividerHeight: Int? = nil,
         spacing: Int? = nil
@@ -202,6 +230,10 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         self.padding = padding
         self.margin = margin
         self.textAlign = textAlign
+        self.overflow = overflow
+        self.border = border
+        self.position = position
+        self.offset = offset
         self.dividerWidth = dividerWidth
         self.dividerHeight = dividerHeight
         self.spacing = spacing
@@ -230,6 +262,38 @@ public enum TCSSTextAlign: String, Equatable, Sendable {
     case left
     case center
     case right
+}
+
+public enum TCSSPosition: String, Equatable, Sendable {
+    case relative
+    case absolute
+}
+
+public enum TCSSBorderKind: Equatable, Sendable {
+    case none
+    case single
+    case double
+    case dashed
+    case rounded
+    case ascii
+    case vector
+
+    public func flowBorder(style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black)) -> FlowBorder {
+        switch self {
+        case .none, .vector:
+            return .none
+        case .single:
+            return .single(style: style)
+        case .double:
+            return .double(style: style)
+        case .dashed:
+            return .dashed(style: style)
+        case .rounded:
+            return .rounded(style: style)
+        case .ascii:
+            return .ascii(style: style)
+        }
+    }
 }
 
 public struct TCSSStyleModelBuilder: Sendable {
@@ -295,8 +359,18 @@ public struct TCSSStyleModelBuilder: Sendable {
                 assignTextStyle(declaration, to: &style, diagnostics: &diagnostics)
             case "bold":
                 assignBool(declaration, to: \.terminalStyle.bold, in: &style, diagnostics: &diagnostics)
+            case "dim":
+                assignBool(declaration, to: \.terminalStyle.dim, in: &style, diagnostics: &diagnostics)
+            case "italic":
+                assignBool(declaration, to: \.terminalStyle.italic, in: &style, diagnostics: &diagnostics)
+            case "underline":
+                assignBool(declaration, to: \.terminalStyle.underline, in: &style, diagnostics: &diagnostics)
+            case "strike", "strikethrough":
+                assignBool(declaration, to: \.terminalStyle.strikethrough, in: &style, diagnostics: &diagnostics)
             case "inverse":
                 assignBool(declaration, to: \.terminalStyle.inverse, in: &style, diagnostics: &diagnostics)
+            case "blink":
+                assignBool(declaration, to: \.terminalStyle.blink, in: &style, diagnostics: &diagnostics)
             case "width":
                 assignLayoutLength(declaration, dimension: .width, in: &style, diagnostics: &diagnostics)
             case "height":
@@ -315,6 +389,22 @@ public struct TCSSStyleModelBuilder: Sendable {
                 assignBoxEdges(declaration, to: \.layout.margin, in: &style, diagnostics: &diagnostics)
             case "text-align":
                 assignTextAlign(declaration, to: &style, diagnostics: &diagnostics)
+            case "overflow":
+                assignOverflow(declaration, to: &style, diagnostics: &diagnostics)
+            case "overflow-x":
+                assignOverflowAxis(declaration, axis: .width, to: &style, diagnostics: &diagnostics)
+            case "overflow-y":
+                assignOverflowAxis(declaration, axis: .height, to: &style, diagnostics: &diagnostics)
+            case "border":
+                assignBorder(declaration, to: &style, diagnostics: &diagnostics)
+            case "position":
+                assignPosition(declaration, to: &style, diagnostics: &diagnostics)
+            case "offset":
+                assignOffset(declaration, to: &style, diagnostics: &diagnostics)
+            case "offset-x":
+                assignOffsetAxis(declaration, axis: .width, to: &style, diagnostics: &diagnostics)
+            case "offset-y":
+                assignOffsetAxis(declaration, axis: .height, to: &style, diagnostics: &diagnostics)
             case "divider-width":
                 assignInt(declaration, to: \.layout.dividerWidth, in: &style, diagnostics: &diagnostics)
             case "divider-height":
@@ -433,6 +523,78 @@ public struct TCSSStyleModelBuilder: Sendable {
         style.layout.textAlign = textAlign
     }
 
+    private func assignOverflow(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let overflow = valueParser.parseOverflow(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported overflow value '\(declaration.value)'."))
+            return
+        }
+        style.layout.overflow = overflow
+    }
+
+    private func assignOverflowAxis(
+        _ declaration: TCSSDeclaration,
+        axis: FlowDimension,
+        to style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let policy = valueParser.parseOverflowPolicy(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported \(declaration.property) value '\(declaration.value)'."))
+            return
+        }
+        var overflow = style.layout.overflow ?? .hidden
+        switch axis {
+        case .width:
+            overflow.x = policy
+        case .height:
+            overflow.y = policy
+        }
+        style.layout.overflow = overflow
+    }
+
+    private func assignBorder(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let border = valueParser.parseBorderKind(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported border value '\(declaration.value)'."))
+            return
+        }
+        style.layout.border = border
+    }
+
+    private func assignPosition(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let position = valueParser.parsePosition(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported position value '\(declaration.value)'."))
+            return
+        }
+        style.layout.position = position
+    }
+
+    private func assignOffset(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let offset = valueParser.parseOffset(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected two cell offsets for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        style.layout.offset = offset
+    }
+
+    private func assignOffsetAxis(
+        _ declaration: TCSSDeclaration,
+        axis: FlowDimension,
+        to style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let value = valueParser.parseCellOffset(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected cell offset for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        var offset = style.layout.offset ?? Point(x: 0, y: 0)
+        switch axis {
+        case .width:
+            offset.x = value
+        case .height:
+            offset.y = value
+        }
+        style.layout.offset = offset
+    }
+
     private func assignTextStyle(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
         guard !declaration.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Declaration 'text-style' is missing a value."))
@@ -443,7 +605,12 @@ public struct TCSSStyleModelBuilder: Sendable {
             return
         }
         style.terminalStyle.bold = patch.bold ?? style.terminalStyle.bold
+        style.terminalStyle.dim = patch.dim ?? style.terminalStyle.dim
+        style.terminalStyle.italic = patch.italic ?? style.terminalStyle.italic
+        style.terminalStyle.underline = patch.underline ?? style.terminalStyle.underline
+        style.terminalStyle.strikethrough = patch.strikethrough ?? style.terminalStyle.strikethrough
         style.terminalStyle.inverse = patch.inverse ?? style.terminalStyle.inverse
+        style.terminalStyle.blink = patch.blink ?? style.terminalStyle.blink
     }
 
     private func assignDividerSize(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {

@@ -58,6 +58,10 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
     }
 
     public func readInput(maxBytes: Int = 64) throws -> [UInt8] {
+        guard waitForInput(timeoutMicroseconds: 50_000) else {
+            return []
+        }
+
         var buffer = [UInt8](repeating: 0, count: max(1, maxBytes))
         let count = Darwin.read(input, &buffer, buffer.count)
         if count < 0 {
@@ -124,10 +128,14 @@ public final class FileDescriptorTerminalDevice: TerminalDevice, @unchecked Send
     }
 
     private func hasPendingInput() -> Bool {
+        waitForInput(timeoutMicroseconds: 1_000)
+    }
+
+    private func waitForInput(timeoutMicroseconds: Int) -> Bool {
         var readSet = fd_set()
         fdZero(&readSet)
         fdSet(input, set: &readSet)
-        var timeout = timeval(tv_sec: 0, tv_usec: 1_000)
+        var timeout = timeval(tv_sec: timeoutMicroseconds / 1_000_000, tv_usec: Int32(timeoutMicroseconds % 1_000_000))
         return select(input + 1, &readSet, nil, nil, &timeout) > 0
     }
 }

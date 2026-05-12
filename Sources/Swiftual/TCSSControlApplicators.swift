@@ -495,6 +495,13 @@ public struct TCSSFlowContainerApplicator: TCSSStyleApplying {
         if let padding = style.layout.padding {
             target.padding = BoxEdges(top: padding.top, right: padding.right, bottom: padding.bottom, left: padding.left)
         }
+        if let overflow = style.layout.overflow {
+            target.overflow = overflow
+        }
+        if let border = style.layout.border {
+            let borderStyle = style.terminalStyle.applied(to: target.border.style)
+            target.border = border.flowBorder(style: borderStyle)
+        }
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
     }
 }
