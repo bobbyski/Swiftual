@@ -198,8 +198,15 @@ public struct FlowBorder: Equatable, Sendable {
 public struct FlowChild: Sendable {
     public var renderable: AnyCanvasRenderable
     public var preferences: LayoutPreferences
+    public var reservesLayout: Bool
+    public var shouldRender: Bool
 
-    public init(_ renderable: AnyCanvasRenderable, preferences: LayoutPreferences? = nil) {
+    public init(
+        _ renderable: AnyCanvasRenderable,
+        preferences: LayoutPreferences? = nil,
+        reservesLayout: Bool = true,
+        shouldRender: Bool = true
+    ) {
         self.renderable = renderable
         self.preferences = preferences ?? LayoutPreferences(
             width: .auto,
@@ -207,10 +214,22 @@ public struct FlowChild: Sendable {
             minWidth: .cells(0),
             minHeight: .cells(0)
         )
+        self.reservesLayout = reservesLayout
+        self.shouldRender = shouldRender
     }
 
-    public init<Renderable: CanvasRenderable>(_ renderable: Renderable, preferences: LayoutPreferences? = nil) {
-        self.init(AnyCanvasRenderable(renderable), preferences: preferences)
+    public init<Renderable: CanvasRenderable>(
+        _ renderable: Renderable,
+        preferences: LayoutPreferences? = nil,
+        reservesLayout: Bool = true,
+        shouldRender: Bool = true
+    ) {
+        self.init(
+            AnyCanvasRenderable(renderable),
+            preferences: preferences,
+            reservesLayout: reservesLayout,
+            shouldRender: shouldRender
+        )
     }
 
     public var intrinsicSize: IntrinsicSize {
@@ -279,21 +298,32 @@ public struct FlowContainer: CanvasRenderable {
         let content = contentFrame
         guard !children.isEmpty, content.width > 0, content.height > 0 else { return [] }
 
+        let activeIndices = children.indices.filter { children[$0].reservesLayout }
+        guard !activeIndices.isEmpty else {
+            return Array(repeating: Rect(x: content.x, y: content.y, width: 0, height: 0), count: children.count)
+        }
+
         let mainAvailable = axis == .vertical ? content.height : content.width
         let crossAvailable = axis == .vertical ? content.width : content.height
-        let totalSpacing = max(0, children.count - 1) * spacing.main
-        let mainContentAvailable = max(0, mainAvailable - totalSpacing)
+        let totalSpacing = max(0, activeIndices.count - 1) * spacing.main
+        let totalMainMargin = activeIndices.reduce(0) { $0 + mainMargin(for: children[$1].preferences.margin) }
+        let mainContentAvailable = max(0, mainAvailable - totalSpacing - totalMainMargin)
         let intrinsic = children.map(\.intrinsicSize)
-        let mainLengths = resolveMainLengths(available: mainContentAvailable, intrinsic: intrinsic)
+        let mainLengths = resolveMainLengths(available: mainContentAvailable, intrinsic: intrinsic, indices: activeIndices)
 
-        var frames: [Rect] = []
+        var frames = Array(repeating: Rect(x: content.x, y: content.y, width: 0, height: 0), count: children.count)
         var cursor = axis == .vertical ? content.y - scrollOffset.y : content.x - scrollOffset.x
 
-        for index in children.indices {
+        for index in activeIndices {
             let child = children[index]
+            let margin = child.preferences.margin
+            let crossMargin = crossMargin(for: margin)
+            let childCrossAvailable = max(0, crossAvailable - crossMargin)
             let childMain = mainLengths[index]
-            let childCross = resolveCrossLength(child: child, intrinsic: intrinsic[index], available: crossAvailable)
-            let crossOrigin = crossStart(for: childCross, available: crossAvailable, content: content)
+            let childCross = resolveCrossLength(child: child, intrinsic: intrinsic[index], available: childCrossAvailable)
+            let crossOrigin = crossStart(for: childCross, available: childCrossAvailable, content: content, margin: margin)
+
+            cursor += mainStartMargin(for: margin)
 
             let rect: Rect
             if axis == .vertical {
@@ -301,8 +331,8 @@ public struct FlowContainer: CanvasRenderable {
             } else {
                 rect = Rect(x: cursor, y: crossOrigin, width: childMain, height: childCross)
             }
-            frames.append(rect)
-            cursor += childMain + spacing.main
+            frames[index] = rect
+            cursor += childMain + mainEndMargin(for: margin) + spacing.main
         }
 
         return frames
@@ -317,6 +347,7 @@ public struct FlowContainer: CanvasRenderable {
         let frames = laidOutChildren()
         for index in children.indices {
             guard frames.indices.contains(index) else { break }
+            guard children[index].reservesLayout, children[index].shouldRender else { continue }
             let frame = clip(frames[index], canvasSize: canvas.size)
             guard frame.width > 0, frame.height > 0 else { continue }
             var child = children[index].renderable
@@ -325,7 +356,7 @@ public struct FlowContainer: CanvasRenderable {
         }
     }
 
-    private func resolveMainLengths(available: Int, intrinsic: [IntrinsicSize]) -> [Int] {
+    private func resolveMainLengths(available: Int, intrinsic: [IntrinsicSize], indices: [Int]) -> [Int] {
         var lengths = Array(repeating: 0, count: children.count)
         var remaining = available
         var fractionWeight = 0.0
@@ -333,7 +364,7 @@ public struct FlowContainer: CanvasRenderable {
         var fractionIndices: [Int] = []
         var fillIndices: [Int] = []
 
-        for index in children.indices {
+        for index in indices {
             let child = children[index]
             let length = mainLength(for: child.preferences)
             switch length {
@@ -414,26 +445,44 @@ public struct FlowContainer: CanvasRenderable {
         return min(available, resolved)
     }
 
-    private func crossStart(for length: Int, available: Int, content: Rect) -> Int {
+    private func crossStart(for length: Int, available: Int, content: Rect, margin: BoxEdges) -> Int {
         let extra = max(0, available - length)
         if axis == .vertical {
+            let start = content.x + margin.left
             switch alignment.horizontal {
             case .left, .stretch:
-                return content.x
+                return start
             case .center:
-                return content.x + extra / 2
+                return start + extra / 2
             case .right:
-                return content.x + extra
+                return start + extra
             }
         }
+        let start = content.y + margin.top
         switch alignment.vertical {
         case .top, .stretch:
-            return content.y
+            return start
         case .middle:
-            return content.y + extra / 2
+            return start + extra / 2
         case .bottom:
-            return content.y + extra
+            return start + extra
         }
+    }
+
+    private func mainMargin(for margin: BoxEdges) -> Int {
+        mainStartMargin(for: margin) + mainEndMargin(for: margin)
+    }
+
+    private func mainStartMargin(for margin: BoxEdges) -> Int {
+        axis == .vertical ? margin.top : margin.left
+    }
+
+    private func mainEndMargin(for margin: BoxEdges) -> Int {
+        axis == .vertical ? margin.bottom : margin.right
+    }
+
+    private func crossMargin(for margin: BoxEdges) -> Int {
+        axis == .vertical ? margin.horizontal : margin.vertical
     }
 
     private func clip(_ rect: Rect, canvasSize: TerminalSize) -> Rect {
@@ -665,14 +714,16 @@ public struct Grid: CanvasRenderable {
         guard content.width > 0, content.height > 0 else { return }
         let totalGutter = max(0, columns - 1) * gutter.main
         let cellWidth = max(1, (content.width - totalGutter) / columns)
-        let cellHeight = children.map { $0.intrinsicSize.height }.max() ?? 1
-        for index in children.indices {
-            let column = index % columns
-            let row = index / columns
+        let activeIndices = children.indices.filter { children[$0].reservesLayout }
+        let cellHeight = activeIndices.map { children[$0].intrinsicSize.height }.max() ?? 1
+        for (placementIndex, childIndex) in activeIndices.enumerated() {
+            let column = placementIndex % columns
+            let row = placementIndex / columns
             let x = content.x + column * (cellWidth + gutter.main)
             let y = content.y + row * (cellHeight + gutter.main)
             guard y < content.y + content.height else { return }
-            var child = children[index].renderable
+            guard children[childIndex].shouldRender else { continue }
+            var child = children[childIndex].renderable
             child.frame = Rect(x: x, y: y, width: cellWidth, height: min(cellHeight, content.y + content.height - y))
             child.render(in: &canvas)
         }

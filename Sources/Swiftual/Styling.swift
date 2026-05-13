@@ -13,6 +13,12 @@ public enum TerminalColor: Equatable, Sendable {
     public static let cyan = TerminalColor.ansi(6)
     public static let white = TerminalColor.ansi(7)
     public static let brightBlack = TerminalColor.ansi(8)
+    public static let brightRed = TerminalColor.ansi(9)
+    public static let brightGreen = TerminalColor.ansi(10)
+    public static let brightYellow = TerminalColor.ansi(11)
+    public static let brightBlue = TerminalColor.ansi(12)
+    public static let brightMagenta = TerminalColor.ansi(13)
+    public static let brightCyan = TerminalColor.ansi(14)
     public static let brightWhite = TerminalColor.ansi(15)
 }
 

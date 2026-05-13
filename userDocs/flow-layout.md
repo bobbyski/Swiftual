@@ -2,7 +2,7 @@
 
 Swiftual flow layout arranges renderable children in terminal-cell space without each demo or app computing every child coordinate by hand.
 
-The first implementation covers the Textual-equivalent pieces: vertical flow, horizontal flow, grouped containers, scrollable flow containers, grid placement, alignment, fixed sizing, percentage sizing, fractional sizing, auto sizing, optional fill styles, and optional border titles.
+The first implementation covers the Textual-equivalent pieces: vertical flow, horizontal flow, grouped containers, scrollable flow containers, grid placement, alignment, fixed sizing, percentage sizing, fractional sizing, auto sizing, margins, optional fill styles, and optional border titles.
 
 `Absolute`, `Window`, and `StatusBar` are intentionally left for a later design pass.
 
@@ -63,6 +63,7 @@ FlowBorder.ascii()   // + + + + - |
 - `axis`: `.vertical` stacks top to bottom; `.horizontal` places left to right.
 - `spacing`: fixed cells between children on the main axis.
 - `padding`: inset applied inside the border and before child layout.
+- `margin`: child-side spacing stored on `LayoutPreferences`.
 - `alignment`: cross-axis placement such as leading, centered, right/bottom, or stretch.
 - `overflow`: visible, hidden, scroll, or auto policy values for each axis.
 - `scrollOffset`: viewport offset used by scrollable flow containers.
@@ -101,12 +102,15 @@ Each `FlowChild` can carry `LayoutPreferences`:
 
 Minimum and maximum width/height constraints use the same `LayoutLength` values and clamp the resolved frame after primary sizing.
 
+Margins live on `LayoutPreferences` and are applied outside the child frame. On the main axis they consume space before and after a child, then regular flow spacing is applied between children. On the cross axis they reduce the available alignment space, so centered or right/bottom-aligned children are positioned inside the margin box rather than spilling into it.
+
 ## Rendering Behavior
 
 - Containers render fill first, then border, then children.
 - Borders reserve one cell on each side.
 - Hidden, scroll, and auto overflow clip children to the content frame.
 - Visible overflow lets children render past the container frame until the canvas edge.
+- Scroll and auto overflow honor `scrollOffset`; scrollbar chrome is owned by controls such as `ScrollView` and `Tree`, not by every generic flow container.
 - `Vertical` and `Horizontal` preserve their existing public initializers and now delegate placement to `FlowContainer`.
 - The demo labels its vertical and horizontal examples with border titles.
 
@@ -118,6 +122,10 @@ Minimum and maximum width/height constraints use the same `LayoutLength` values 
 - Percent and auto sizing resolve to stable integer cell frames.
 - Minimum and maximum constraints resolve scalar units before clamping child frames.
 - TCSS-driven demos may map `spacing` / `gap` declarations to `FlowSpacing(main:)` for resize tests and stylesheet-driven layouts.
+- Child margins consume main-axis space and reduce cross-axis alignment space.
+- Hidden overflow clips children to the content frame.
+- Visible overflow permits children to render past the content frame until the canvas edge.
+- Scroll overflow honors `scrollOffset`.
 - Border and border titles render around content.
 - Border subtitles render in the bottom border with Textual-style default right alignment.
 - Single, double, dashed, rounded, and ASCII border character sets render the expected edge and corner glyphs.

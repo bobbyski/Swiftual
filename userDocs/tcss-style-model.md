@@ -51,7 +51,8 @@ let model = TCSSStyleModelBuilder().parse(sourceSet)
 - `TCSSStyleRule.selectors`: selectors from the parsed rule.
 - `TCSSStyleRule.style`: typed style data.
 - `TCSSStyle.terminalStyle`: optional `TerminalStyle` patch values.
-- `TCSSStyle.layout`: optional layout and future control style values.
+- `TCSSStyle.layout`: optional layout values, including scalar sizes, box spacing, overflow, position, docking, alignment, and layer metadata.
+- `TCSSStyle.visual`: optional visual values such as opacity, display, and visibility. These are parsed and cascaded now, but not all of them are rendered by terminal controls yet.
 - `TCSSStylesheetSource`: named TCSS source used when parsing multiple active files. Sources also carry kind metadata and an enabled flag.
 - `TCSSStylesheetSourceSet`: ordered source collection for theme stacks, generated styles, inline overrides, and demo/file-picker inputs.
 - `TCSSTerminalStylePatch.applied(to:)`: overlays declared terminal values on a pure Swift base style.
@@ -72,10 +73,21 @@ let model = TCSSStyleModelBuilder().parse(sourceSet)
 
 Supported colors:
 
-- ANSI names: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `bright-black`, `bright-white`.
+- ANSI names: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, `bright-black`, `bright-red`, `bright-green`, `bright-yellow`, `bright-blue`, `bright-magenta`, `bright-cyan`, `bright-white`.
 - ANSI indexes: `ansi(10)`.
 - RGB functions: `rgb(255,0,128)`.
 - Hex values: `#369` and `#336699`.
+
+## Supported Visual Declarations
+
+- `opacity`: accepts `0` through `1` or `0%` through `100%`.
+- `text-opacity`: accepts `0` through `1` or `0%` through `100%`.
+- `display`: `block` or `none`.
+- `visibility`: `visible` or `hidden`.
+
+These visual values are typed and cascaded. `TCSSVisualApplicator` defines the shared interpretation for layout/render decisions: `display: none` does not reserve layout and does not render; `visibility: hidden` reserves layout but does not render. `FlowChild` supports those flags directly, so flow containers can already omit display-none children from space and spacing while leaving hidden children in the layout. Terminal alpha needs an explicit degradation policy, such as palette blending, dim-style fallback, or future vector renderer support.
+
+The TCSS demo includes `12-display-visibility.tcss` as the visible acceptance sheet for this behavior. It hides the label/button panel with `visibility: hidden` so the blank space remains, and removes the container row with `display: none` so later flow content moves upward.
 
 ## Supported Layout Declarations
 
@@ -85,6 +97,16 @@ Supported colors:
 - `min-height`
 - `max-width`
 - `max-height`
+- `layout`: `horizontal`, `vertical`, or `grid`.
+- `dock`: `top`, `right`, `bottom`, or `left`.
+- `align`: horizontal then vertical alignment, such as `center middle`.
+- `align-horizontal`: horizontal alignment component: `left`, `center`, or `right`.
+- `align-vertical`: vertical alignment component: `top`, `middle`, or `bottom`.
+- `content-align`: horizontal then vertical content alignment, such as `right bottom`.
+- `content-align-horizontal`: horizontal content-alignment component.
+- `content-align-vertical`: vertical content-alignment component.
+- `layer`: one layer name.
+- `layers`: one or more layer names.
 - `padding`
 - `margin`
 - `border`: `none`, `single`/`solid`, `double`, `dashed`, `rounded`, `ascii`, or `vector`.
@@ -114,11 +136,15 @@ Width, height, min-width, min-height, max-width, and max-height may also use Tex
 
 Cell values populate the legacy integer `width` and `height` fields; non-cell values populate `widthLength` and `heightLength` for flow containers to resolve against parent space. Minimum and maximum size constraints use the same scalar value model so TCSS can clamp layouts using cells, percentages, fractions, container units, or viewport units.
 
+`margin` maps into `LayoutPreferences.margin` through the shared layout preference applicator. Flow containers now honor that margin during layout: main-axis margins consume space around the child, and cross-axis margins shrink the alignment area before child placement.
+
 Border values currently cover Swiftual's flow-border character presets: `none`, `single`/`solid`, `double`, `dashed`, `rounded`, and `ascii`. `vector` is reserved for the future vector drawing renderer and currently applies as no visible terminal border. The typed model and cascade preserve border declarations, and `TCSSFlowContainerApplicator` applies them to `FlowContainer`.
 
 Overflow values support `visible`, `hidden`, `scroll`, and `auto`. The typed model and cascade preserve overflow declarations, and `TCSSFlowContainerApplicator` applies them to `FlowContainer`. Other wrappers will opt into this as their public APIs grow overflow surfaces.
 
 Position values support `relative` and `absolute`, matching Textual's `position` vocabulary. Offsets currently accept signed cell values such as `4 -2`, `4ch -2ch`, `offset-x: -3`, and `offset-y: 8`. Swiftual parses and cascades these values now, but does not apply them to live layout until the Absolute container and offset behavior are designed.
+
+Layout manager and placement values are typed and cascaded now. `layout: vertical` and `layout: horizontal` map to `FlowContainer.axis`; `layout: grid` is preserved but deferred until the grid container API is settled. `align`, `align-horizontal`, and `align-vertical` map to `FlowAlignment` and are applied by `TCSSFlowContainerApplicator`, `TCSSVerticalApplicator`, and `TCSSHorizontalApplicator`; this controls child placement inside Swiftual flow containers. `dock`, `content-align`, `layer`, and `layers` still preserve Textual-style intent for future layout surfaces. Live application for docking, layer ordering, and content alignment is intentionally deferred until those concepts have pure Swift APIs.
 
 ## Diagnostics
 
@@ -126,6 +152,8 @@ The style model keeps parser diagnostics and adds diagnostics for:
 
 - Unsupported properties.
 - Unsupported color values.
+- Invalid opacity values.
+- Unsupported display or visibility values.
 - Invalid boolean values.
 - Invalid integer values.
 - Invalid spacing values.
@@ -134,15 +162,20 @@ The style model keeps parser diagnostics and adds diagnostics for:
 ## Test Checklist
 
 - Terminal declarations map to `TCSSTerminalStylePatch`, including expanded ANSI flags for bold, dim, italic, underline, strikethrough, inverse, and blink.
+- Visual declarations map to `TCSSVisualStyle`; opacity, text opacity, display, and visibility cascade by specificity/source order.
+- `TCSSVisualApplicator` reports the expected layout/render behavior for `display` and `visibility`.
+- `FlowContainer` honors `FlowChild.reservesLayout` and `FlowChild.shouldRender` so `display: none` and `visibility: hidden` can behave differently in flow layouts.
 - Style patches preserve undeclared base values when applied.
 - `TCSSStyleLayer` resets previous TCSS-applied state before applying a new patch.
 - Hex, RGB, ANSI indexes, and named colors parse correctly.
 - Layout declarations map to typed fields.
 - Scalar layout declarations parse for width, height, and min/max constraints.
 - Flow spacing declarations parse for containers that opt into TCSS-driven child gaps.
+- Margins map into layout preferences and are consumed by flow layout.
 - Border declarations parse to Swiftual flow-border presets.
 - Overflow declarations parse as shorthand and per-axis properties.
 - Position and offset declarations parse and cascade without live layout application yet.
+- Layout, dock, alignment, and layer declarations parse and cascade; `layout: vertical`/`horizontal` and `align` apply to flow containers, while `grid`, docking, `content-align`, and layers remain deferred.
 - Spacing shorthands parse one to four values.
 - Unsupported properties and invalid values report diagnostics.
 - The style model does not apply styles to controls yet; cascade and control application are separate steps.

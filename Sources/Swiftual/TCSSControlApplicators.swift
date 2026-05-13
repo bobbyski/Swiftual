@@ -1,5 +1,30 @@
 import Foundation
 
+public struct TCSSVisualApplicator: Sendable {
+    public init() {}
+
+    public func reservesLayout(_ style: TCSSStyle) -> Bool {
+        style.visual.display != TCSSDisplay.none
+    }
+
+    public func shouldRender(_ style: TCSSStyle) -> Bool {
+        reservesLayout(style) && style.visual.visibility != .hidden
+    }
+
+    public func flowChild<Renderable: CanvasRenderable>(
+        _ renderable: Renderable,
+        style: TCSSStyle,
+        preferences: LayoutPreferences? = nil
+    ) -> FlowChild {
+        FlowChild(
+            renderable,
+            preferences: preferences,
+            reservesLayout: reservesLayout(style),
+            shouldRender: shouldRender(style)
+        )
+    }
+}
+
 public struct TCSSLayoutApplicator: Sendable {
     public init() {}
 
@@ -38,6 +63,31 @@ public struct TCSSLayoutApplicator: Sendable {
         )
     }
 
+    public func flowAlignment(from alignment: TCSSAlignment) -> FlowAlignment {
+        FlowAlignment(
+            horizontal: horizontalAlignment(from: alignment.horizontal),
+            vertical: verticalAlignment(from: alignment.vertical)
+        )
+    }
+
+    public func flowAlignment(from layout: TCSSLayoutStyle, fallback: FlowAlignment) -> FlowAlignment {
+        guard let alignment = layout.align else {
+            return fallback
+        }
+        return flowAlignment(from: alignment)
+    }
+
+    public func flowAxis(from layoutKind: TCSSLayoutKind, fallback: FlowAxis) -> FlowAxis {
+        switch layoutKind {
+        case .vertical:
+            .vertical
+        case .horizontal:
+            .horizontal
+        case .grid:
+            fallback
+        }
+    }
+
     public func resolvedDirectConstraint(_ length: LayoutLength, intrinsic: Int, frame: Rect) -> Int {
         if case .cells = length {
             return resolved(length, intrinsic: intrinsic, frame: frame)
@@ -62,6 +112,28 @@ public struct TCSSLayoutApplicator: Sendable {
             return Int((Double(frame.height) * value).rounded(.down))
         case .auto:
             return intrinsic
+        }
+    }
+
+    private func horizontalAlignment(from alignment: TCSSHorizontalAlignment) -> HorizontalAlignment {
+        switch alignment {
+        case .left:
+            .left
+        case .center:
+            .center
+        case .right:
+            .right
+        }
+    }
+
+    private func verticalAlignment(from alignment: TCSSVerticalAlignment) -> VerticalAlignment {
+        switch alignment {
+        case .top:
+            .top
+        case .middle:
+            .middle
+        case .bottom:
+            .bottom
         }
     }
 }
@@ -502,6 +574,10 @@ public struct TCSSFlowContainerApplicator: TCSSStyleApplying {
             let borderStyle = style.terminalStyle.applied(to: target.border.style)
             target.border = border.flowBorder(style: borderStyle)
         }
+        if let layoutKind = style.layout.layoutKind {
+            target.axis = layoutApplicator.flowAxis(from: layoutKind, fallback: target.axis)
+        }
+        target.alignment = layoutApplicator.flowAlignment(from: style.layout, fallback: target.alignment)
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
     }
 }
@@ -520,6 +596,7 @@ public struct TCSSVerticalApplicator: TCSSStyleApplying {
         if let spacing = style.layout.spacing {
             target.spacing = spacing
         }
+        target.alignment = layoutApplicator.flowAlignment(from: style.layout, fallback: target.alignment)
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
     }
 }
@@ -538,7 +615,30 @@ public struct TCSSHorizontalApplicator: TCSSStyleApplying {
         if let spacing = style.layout.spacing {
             target.spacing = spacing
         }
+        target.alignment = layoutApplicator.flowAlignment(from: style.layout, fallback: target.alignment)
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
+    }
+}
+
+public struct TCSSHorizontalSplitViewApplicator: TCSSStyleApplying {
+    public init() {}
+
+    public func apply(_ style: TCSSStyle, to target: inout HorizontalSplitView) {
+        target.dividerStyle = style.terminalStyle.applied(to: target.dividerStyle)
+        if let dividerWidth = style.layout.dividerWidth {
+            target.dividerWidth = max(1, dividerWidth)
+        }
+    }
+}
+
+public struct TCSSVerticalSplitViewApplicator: TCSSStyleApplying {
+    public init() {}
+
+    public func apply(_ style: TCSSStyle, to target: inout VerticalSplitView) {
+        target.dividerStyle = style.terminalStyle.applied(to: target.dividerStyle)
+        if let dividerHeight = style.layout.dividerHeight {
+            target.dividerHeight = max(1, dividerHeight)
+        }
     }
 }
 

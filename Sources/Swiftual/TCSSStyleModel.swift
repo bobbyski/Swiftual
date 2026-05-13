@@ -121,13 +121,16 @@ public struct TCSSStyleRule: Equatable, Sendable {
 public struct TCSSStyle: Equatable, Sendable {
     public var terminalStyle: TCSSTerminalStylePatch
     public var layout: TCSSLayoutStyle
+    public var visual: TCSSVisualStyle
 
     public init(
         terminalStyle: TCSSTerminalStylePatch = TCSSTerminalStylePatch(),
-        layout: TCSSLayoutStyle = TCSSLayoutStyle()
+        layout: TCSSLayoutStyle = TCSSLayoutStyle(),
+        visual: TCSSVisualStyle = TCSSVisualStyle()
     ) {
         self.terminalStyle = terminalStyle
         self.layout = layout
+        self.visual = visual
     }
 }
 
@@ -180,6 +183,12 @@ public struct TCSSTerminalStylePatch: Equatable, Sendable {
 }
 
 public struct TCSSLayoutStyle: Equatable, Sendable {
+    public var layoutKind: TCSSLayoutKind?
+    public var dock: TCSSDock?
+    public var align: TCSSAlignment?
+    public var contentAlign: TCSSAlignment?
+    public var layer: String?
+    public var layers: [String]?
     public var width: Int?
     public var height: Int?
     public var widthLength: LayoutLength?
@@ -200,6 +209,12 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public var spacing: Int?
 
     public init(
+        layoutKind: TCSSLayoutKind? = nil,
+        dock: TCSSDock? = nil,
+        align: TCSSAlignment? = nil,
+        contentAlign: TCSSAlignment? = nil,
+        layer: String? = nil,
+        layers: [String]? = nil,
         width: Int? = nil,
         height: Int? = nil,
         widthLength: LayoutLength? = nil,
@@ -219,6 +234,12 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         dividerHeight: Int? = nil,
         spacing: Int? = nil
     ) {
+        self.layoutKind = layoutKind
+        self.dock = dock
+        self.align = align
+        self.contentAlign = contentAlign
+        self.layer = layer
+        self.layers = layers
         self.width = width
         self.height = height
         self.widthLength = widthLength ?? width.map { .cells($0) }
@@ -238,6 +259,70 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         self.dividerHeight = dividerHeight
         self.spacing = spacing
     }
+}
+
+public enum TCSSLayoutKind: String, Equatable, Sendable {
+    case horizontal
+    case vertical
+    case grid
+}
+
+public enum TCSSDock: String, Equatable, Sendable {
+    case top
+    case right
+    case bottom
+    case left
+}
+
+public enum TCSSHorizontalAlignment: String, Equatable, Sendable {
+    case left
+    case center
+    case right
+}
+
+public enum TCSSVerticalAlignment: String, Equatable, Sendable {
+    case top
+    case middle
+    case bottom
+}
+
+public struct TCSSAlignment: Equatable, Sendable {
+    public var horizontal: TCSSHorizontalAlignment
+    public var vertical: TCSSVerticalAlignment
+
+    public init(horizontal: TCSSHorizontalAlignment, vertical: TCSSVerticalAlignment) {
+        self.horizontal = horizontal
+        self.vertical = vertical
+    }
+}
+
+public struct TCSSVisualStyle: Equatable, Sendable {
+    public var opacity: Double?
+    public var textOpacity: Double?
+    public var display: TCSSDisplay?
+    public var visibility: TCSSVisibility?
+
+    public init(
+        opacity: Double? = nil,
+        textOpacity: Double? = nil,
+        display: TCSSDisplay? = nil,
+        visibility: TCSSVisibility? = nil
+    ) {
+        self.opacity = opacity
+        self.textOpacity = textOpacity
+        self.display = display
+        self.visibility = visibility
+    }
+}
+
+public enum TCSSDisplay: String, Equatable, Sendable {
+    case block
+    case none
+}
+
+public enum TCSSVisibility: String, Equatable, Sendable {
+    case visible
+    case hidden
 }
 
 public struct TCSSBoxEdges: Equatable, Sendable {
@@ -371,6 +456,34 @@ public struct TCSSStyleModelBuilder: Sendable {
                 assignBool(declaration, to: \.terminalStyle.inverse, in: &style, diagnostics: &diagnostics)
             case "blink":
                 assignBool(declaration, to: \.terminalStyle.blink, in: &style, diagnostics: &diagnostics)
+            case "opacity":
+                assignOpacity(declaration, to: \.visual.opacity, in: &style, diagnostics: &diagnostics)
+            case "text-opacity":
+                assignOpacity(declaration, to: \.visual.textOpacity, in: &style, diagnostics: &diagnostics)
+            case "display":
+                assignDisplay(declaration, to: &style, diagnostics: &diagnostics)
+            case "visibility":
+                assignVisibility(declaration, to: &style, diagnostics: &diagnostics)
+            case "layout":
+                assignLayoutKind(declaration, to: &style, diagnostics: &diagnostics)
+            case "dock":
+                assignDock(declaration, to: &style, diagnostics: &diagnostics)
+            case "align":
+                assignAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+            case "align-horizontal":
+                assignHorizontalAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+            case "align-vertical":
+                assignVerticalAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+            case "content-align":
+                assignAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+            case "content-align-horizontal":
+                assignHorizontalAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+            case "content-align-vertical":
+                assignVerticalAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+            case "layer":
+                assignLayer(declaration, to: &style, diagnostics: &diagnostics)
+            case "layers":
+                assignLayers(declaration, to: &style, diagnostics: &diagnostics)
             case "width":
                 assignLayoutLength(declaration, dimension: .width, in: &style, diagnostics: &diagnostics)
             case "height":
@@ -458,6 +571,114 @@ public struct TCSSStyleModelBuilder: Sendable {
             return
         }
         style[keyPath: keyPath] = value
+    }
+
+    private func assignOpacity(
+        _ declaration: TCSSDeclaration,
+        to keyPath: WritableKeyPath<TCSSStyle, Double?>,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let value = valueParser.parseOpacity(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected opacity from 0 to 1 or 0% to 100% for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        style[keyPath: keyPath] = value
+    }
+
+    private func assignDisplay(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let display = valueParser.parseDisplay(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported display value '\(declaration.value)'."))
+            return
+        }
+        style.visual.display = display
+    }
+
+    private func assignVisibility(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let visibility = valueParser.parseVisibility(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported visibility value '\(declaration.value)'."))
+            return
+        }
+        style.visual.visibility = visibility
+    }
+
+    private func assignLayoutKind(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let layoutKind = valueParser.parseLayoutKind(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported layout value '\(declaration.value)'."))
+            return
+        }
+        style.layout.layoutKind = layoutKind
+    }
+
+    private func assignDock(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let dock = valueParser.parseDock(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported dock value '\(declaration.value)'."))
+            return
+        }
+        style.layout.dock = dock
+    }
+
+    private func assignAlignment(
+        _ declaration: TCSSDeclaration,
+        to keyPath: WritableKeyPath<TCSSLayoutStyle, TCSSAlignment?>,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let alignment = valueParser.parseAlignment(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected horizontal and vertical alignment for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        style.layout[keyPath: keyPath] = alignment
+    }
+
+    private func assignHorizontalAlignment(
+        _ declaration: TCSSDeclaration,
+        to keyPath: WritableKeyPath<TCSSLayoutStyle, TCSSAlignment?>,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let horizontal = valueParser.parseHorizontalAlignment(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected horizontal alignment for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        let existing = style.layout[keyPath: keyPath]
+        style.layout[keyPath: keyPath] = TCSSAlignment(
+            horizontal: horizontal,
+            vertical: existing?.vertical ?? .top
+        )
+    }
+
+    private func assignVerticalAlignment(
+        _ declaration: TCSSDeclaration,
+        to keyPath: WritableKeyPath<TCSSLayoutStyle, TCSSAlignment?>,
+        in style: inout TCSSStyle,
+        diagnostics: inout [TCSSDiagnostic]
+    ) {
+        guard let vertical = valueParser.parseVerticalAlignment(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected vertical alignment for '\(declaration.property)', got '\(declaration.value)'."))
+            return
+        }
+        let existing = style.layout[keyPath: keyPath]
+        style.layout[keyPath: keyPath] = TCSSAlignment(
+            horizontal: existing?.horizontal ?? .left,
+            vertical: vertical
+        )
+    }
+
+    private func assignLayer(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let names = valueParser.parseNames(declaration.value), names.count == 1 else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one layer name for 'layer', got '\(declaration.value)'."))
+            return
+        }
+        style.layout.layer = names[0]
+    }
+
+    private func assignLayers(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let names = valueParser.parseNames(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one or more layer names for 'layers', got '\(declaration.value)'."))
+            return
+        }
+        style.layout.layers = names
     }
 
     private func assignLayoutLength(

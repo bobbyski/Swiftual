@@ -131,6 +131,27 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(applicator.spacing(from: TCSSStyle(), fallback: 1), 1)
     }
 
+    func testVisualApplicatorReportsLayoutAndRenderVisibility() {
+        let applicator = TCSSVisualApplicator()
+
+        XCTAssertTrue(applicator.reservesLayout(TCSSStyle()))
+        XCTAssertTrue(applicator.shouldRender(TCSSStyle()))
+        XCTAssertTrue(applicator.reservesLayout(TCSSStyle(visual: TCSSVisualStyle(visibility: .hidden))))
+        XCTAssertFalse(applicator.shouldRender(TCSSStyle(visual: TCSSVisualStyle(visibility: .hidden))))
+        XCTAssertFalse(applicator.reservesLayout(TCSSStyle(visual: TCSSVisualStyle(display: TCSSDisplay.none))))
+        XCTAssertFalse(applicator.shouldRender(TCSSStyle(visual: TCSSVisualStyle(display: TCSSDisplay.none))))
+    }
+
+    func testVisualApplicatorCreatesFlowChildFlags() {
+        let child = TCSSVisualApplicator().flowChild(
+            Label("Hidden", frame: Rect(x: 0, y: 0, width: 6, height: 1)),
+            style: TCSSStyle(visual: TCSSVisualStyle(visibility: .hidden))
+        )
+
+        XCTAssertTrue(child.reservesLayout)
+        XCTAssertFalse(child.shouldRender)
+    }
+
     func testLabelApplicatorPatchesAlignmentStyleAndLayout() {
         var label = Label("Name", frame: Rect(x: 0, y: 0, width: 8, height: 1))
         let style = TCSSStyle(
@@ -434,6 +455,8 @@ final class TCSSCascadeTests: XCTestCase {
         let style = TCSSStyle(
             terminalStyle: TCSSTerminalStylePatch(background: .black),
             layout: TCSSLayoutStyle(
+                layoutKind: .horizontal,
+                align: TCSSAlignment(horizontal: .right, vertical: .bottom),
                 width: 32,
                 padding: TCSSBoxEdges(top: 1, right: 2, bottom: 3, left: 4),
                 overflow: Overflow(x: .visible, y: .auto),
@@ -445,11 +468,26 @@ final class TCSSCascadeTests: XCTestCase {
         TCSSFlowContainerApplicator().apply(style, to: &container)
 
         XCTAssertEqual(container.fillStyle?.background, .black)
+        XCTAssertEqual(container.axis, .horizontal)
         XCTAssertEqual(container.spacing, FlowSpacing(main: 5))
         XCTAssertEqual(container.padding, BoxEdges(top: 1, right: 2, bottom: 3, left: 4))
         XCTAssertEqual(container.overflow, Overflow(x: .visible, y: .auto))
         XCTAssertEqual(container.border, .double(style: TerminalStyle(foreground: .brightWhite, background: .black)))
+        XCTAssertEqual(container.alignment, FlowAlignment(horizontal: .right, vertical: .bottom))
         XCTAssertEqual(container.frame.width, 32)
+    }
+
+    func testFlowContainerApplicatorLeavesAxisUnchangedForDeferredGridLayout() {
+        var container = FlowContainer(
+            frame: Rect(x: 0, y: 0, width: 20, height: 8),
+            axis: .vertical,
+            children: []
+        )
+        let style = TCSSStyle(layout: TCSSLayoutStyle(layoutKind: .grid))
+
+        TCSSFlowContainerApplicator().apply(style, to: &container)
+
+        XCTAssertEqual(container.axis, .vertical)
     }
 
     func testVectorBorderCurrentlyAppliesAsNoVisibleBorder() {
@@ -471,7 +509,11 @@ final class TCSSCascadeTests: XCTestCase {
         var horizontal = Horizontal(frame: Rect(x: 0, y: 0, width: 10, height: 4), spacing: 1, children: [])
         let style = TCSSStyle(
             terminalStyle: TCSSTerminalStylePatch(foreground: .cyan, background: .black),
-            layout: TCSSLayoutStyle(height: 9, spacing: 3)
+            layout: TCSSLayoutStyle(
+                align: TCSSAlignment(horizontal: .center, vertical: .middle),
+                height: 9,
+                spacing: 3
+            )
         )
 
         TCSSVerticalApplicator().apply(style, to: &vertical)
@@ -480,11 +522,41 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(vertical.fillStyle?.foreground, .cyan)
         XCTAssertEqual(vertical.fillStyle?.background, .black)
         XCTAssertEqual(vertical.spacing, 3)
+        XCTAssertEqual(vertical.alignment, FlowAlignment(horizontal: .center, vertical: .middle))
         XCTAssertEqual(vertical.frame.height, 9)
         XCTAssertEqual(horizontal.fillStyle?.foreground, .cyan)
         XCTAssertEqual(horizontal.fillStyle?.background, .black)
         XCTAssertEqual(horizontal.spacing, 3)
+        XCTAssertEqual(horizontal.alignment, FlowAlignment(horizontal: .center, vertical: .middle))
         XCTAssertEqual(horizontal.frame.height, 9)
+    }
+
+    func testSplitViewApplicatorsPatchDividerStyleAndSize() {
+        var horizontal = HorizontalSplitView(
+            frame: Rect(x: 0, y: 0, width: 40, height: 10),
+            dividerOffset: 20
+        )
+        var vertical = VerticalSplitView(
+            frame: Rect(x: 0, y: 0, width: 40, height: 10),
+            dividerOffset: 5
+        )
+        let style = TCSSStyle(
+            terminalStyle: TCSSTerminalStylePatch(foreground: .yellow, background: .magenta),
+            layout: TCSSLayoutStyle(
+                dividerWidth: 3,
+                dividerHeight: 2
+            )
+        )
+
+        TCSSHorizontalSplitViewApplicator().apply(style, to: &horizontal)
+        TCSSVerticalSplitViewApplicator().apply(style, to: &vertical)
+
+        XCTAssertEqual(horizontal.dividerStyle.foreground, .yellow)
+        XCTAssertEqual(horizontal.dividerStyle.background, .magenta)
+        XCTAssertEqual(horizontal.dividerWidth, 3)
+        XCTAssertEqual(vertical.dividerStyle.foreground, .yellow)
+        XCTAssertEqual(vertical.dividerStyle.background, .magenta)
+        XCTAssertEqual(vertical.dividerHeight, 2)
     }
 
     func testHigherSpecificityStillWinsAcrossMultipleSources() {
@@ -587,5 +659,57 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(style.terminalStyle.underline, true)
         XCTAssertEqual(style.terminalStyle.italic, true)
         XCTAssertEqual(style.terminalStyle.dim, true)
+    }
+
+    func testVisualOpacityCascadesBySpecificityAndSourceOrder() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Button { opacity: 25%; text-opacity: 0.5; display: block; visibility: visible; }
+        Button.primary { opacity: 75%; visibility: hidden; }
+        Button { text-opacity: 1; display: none; }
+        """)
+
+        let style = TCSSCascade(model: model).style(
+            for: TCSSStyleContext(typeName: "Button", classNames: ["primary"])
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.visual.opacity, 0.75)
+        XCTAssertEqual(style.visual.textOpacity, 1)
+        XCTAssertEqual(style.visual.display, TCSSDisplay.none)
+        XCTAssertEqual(style.visual.visibility, .hidden)
+    }
+
+    func testLayoutPlacementValuesCascadeBySpecificityAndSourceOrder() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Panel {
+            layout: vertical;
+            dock: top;
+            align: left top;
+            content-align: center middle;
+            layer: base;
+            layers: base overlay;
+        }
+        Panel.primary {
+            dock: bottom;
+            align: right bottom;
+            layer: overlay;
+        }
+        Panel {
+            layout: horizontal;
+            layers: base overlay modal;
+        }
+        """)
+
+        let style = TCSSCascade(model: model).style(
+            for: TCSSStyleContext(typeName: "Panel", classNames: ["primary"])
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.layout.layoutKind, .horizontal)
+        XCTAssertEqual(style.layout.dock, .bottom)
+        XCTAssertEqual(style.layout.align, TCSSAlignment(horizontal: .right, vertical: .bottom))
+        XCTAssertEqual(style.layout.contentAlign, TCSSAlignment(horizontal: .center, vertical: .middle))
+        XCTAssertEqual(style.layout.layer, "overlay")
+        XCTAssertEqual(style.layout.layers, ["base", "overlay", "modal"])
     }
 }

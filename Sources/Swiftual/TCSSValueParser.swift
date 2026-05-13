@@ -15,6 +15,12 @@ public struct TCSSValueParser: Sendable {
         case "cyan": return .cyan
         case "white": return .white
         case "bright-black", "brightblack": return .brightBlack
+        case "bright-red", "brightred": return .brightRed
+        case "bright-green", "brightgreen": return .brightGreen
+        case "bright-yellow", "brightyellow": return .brightYellow
+        case "bright-blue", "brightblue": return .brightBlue
+        case "bright-magenta", "brightmagenta": return .brightMagenta
+        case "bright-cyan", "brightcyan": return .brightCyan
         case "bright-white", "brightwhite": return .brightWhite
         default:
             break
@@ -54,6 +60,20 @@ public struct TCSSValueParser: Sendable {
         case "false", "no", "off", "0": return false
         default: return nil
         }
+    }
+
+    public func parseOpacity(_ raw: String) -> Double? {
+        let value = canonicalValue(raw)
+        let opacity: Double?
+        if value.hasSuffix("%") {
+            opacity = Double(value.dropLast()).map { $0 / 100 }
+        } else {
+            opacity = Double(value)
+        }
+        guard let opacity, opacity >= 0, opacity <= 1 else {
+            return nil
+        }
+        return opacity
     }
 
     public func parseNonNegativeInt(_ raw: String) -> Int? {
@@ -165,6 +185,53 @@ public struct TCSSValueParser: Sendable {
 
     public func parsePosition(_ raw: String) -> TCSSPosition? {
         TCSSPosition(rawValue: canonicalValue(raw))
+    }
+
+    public func parseDisplay(_ raw: String) -> TCSSDisplay? {
+        TCSSDisplay(rawValue: canonicalValue(raw))
+    }
+
+    public func parseVisibility(_ raw: String) -> TCSSVisibility? {
+        TCSSVisibility(rawValue: canonicalValue(raw))
+    }
+
+    public func parseLayoutKind(_ raw: String) -> TCSSLayoutKind? {
+        TCSSLayoutKind(rawValue: canonicalValue(raw))
+    }
+
+    public func parseDock(_ raw: String) -> TCSSDock? {
+        TCSSDock(rawValue: canonicalValue(raw))
+    }
+
+    public func parseHorizontalAlignment(_ raw: String) -> TCSSHorizontalAlignment? {
+        TCSSHorizontalAlignment(rawValue: canonicalValue(raw))
+    }
+
+    public func parseVerticalAlignment(_ raw: String) -> TCSSVerticalAlignment? {
+        TCSSVerticalAlignment(rawValue: canonicalValue(raw))
+    }
+
+    public func parseAlignment(_ raw: String) -> TCSSAlignment? {
+        let tokens = raw
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0) }
+        guard tokens.count == 2,
+              let horizontal = parseHorizontalAlignment(tokens[0]),
+              let vertical = parseVerticalAlignment(tokens[1])
+        else {
+            return nil
+        }
+        return TCSSAlignment(horizontal: horizontal, vertical: vertical)
+    }
+
+    public func parseNames(_ raw: String) -> [String]? {
+        let names = raw
+            .split(whereSeparator: { $0.isWhitespace || $0 == "," })
+            .map { canonicalValue(String($0)) }
+        guard !names.isEmpty, names.allSatisfy(isValidName) else {
+            return nil
+        }
+        return names
     }
 
     public func parseOverflowPolicy(_ raw: String) -> OverflowPolicy? {
@@ -288,5 +355,14 @@ public struct TCSSValueParser: Sendable {
     private func parseCellCount(_ raw: String) -> Int? {
         guard let value = Double(raw) else { return nil }
         return Int(value.rounded(.towardZero))
+    }
+
+    private func isValidName(_ raw: String) -> Bool {
+        guard let first = raw.first, first.isLetter || first == "_" else {
+            return false
+        }
+        return raw.allSatisfy { character in
+            character.isLetter || character.isNumber || character == "-" || character == "_"
+        }
     }
 }

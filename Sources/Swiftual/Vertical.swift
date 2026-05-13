@@ -29,6 +29,7 @@ public struct AnyCanvasRenderable: CanvasRenderable {
 public struct Vertical: CanvasRenderable {
     public var frame: Rect
     public var spacing: Int
+    public var alignment: FlowAlignment
     public var fillStyle: TerminalStyle?
     public var border: FlowBorder
     public var borderTitle: String?
@@ -38,6 +39,7 @@ public struct Vertical: CanvasRenderable {
     public init(
         frame: Rect,
         spacing: Int = 0,
+        alignment: FlowAlignment = .topLeading,
         fillStyle: TerminalStyle? = nil,
         border: FlowBorder = .none,
         borderTitle: String? = nil,
@@ -46,6 +48,7 @@ public struct Vertical: CanvasRenderable {
     ) {
         self.frame = frame
         self.spacing = max(0, spacing)
+        self.alignment = alignment
         self.fillStyle = fillStyle
         self.border = border
         self.borderTitle = borderTitle
@@ -58,7 +61,7 @@ public struct Vertical: CanvasRenderable {
             frame: frame,
             axis: .vertical,
             spacing: FlowSpacing(main: spacing),
-            alignment: .topLeading,
+            alignment: alignment,
             fillStyle: fillStyle,
             border: border,
             borderTitle: borderTitle,

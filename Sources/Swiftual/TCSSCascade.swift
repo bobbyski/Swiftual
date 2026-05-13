@@ -87,12 +87,13 @@ public struct TCSSCascade: Sendable {
         var resolved = TCSSStyle()
         var winningTerminal = TCSSPropertyWeights()
         var winningLayout = TCSSPropertyWeights()
+        var winningVisual = TCSSPropertyWeights()
 
         for (ruleIndex, rule) in model.rules.enumerated() {
             for selector in rule.selectors {
                 guard selector.matches(context) else { continue }
                 let weight = TCSSCascadeWeight(specificity: selector.specificity, sourceOrder: ruleIndex)
-                resolved.merge(rule.style, weight: weight, terminalWeights: &winningTerminal, layoutWeights: &winningLayout)
+                resolved.merge(rule.style, weight: weight, terminalWeights: &winningTerminal, layoutWeights: &winningLayout, visualWeights: &winningVisual)
             }
         }
 
@@ -122,6 +123,12 @@ private struct TCSSPropertyWeights {
     var strikethrough: TCSSCascadeWeight?
     var inverse: TCSSCascadeWeight?
     var blink: TCSSCascadeWeight?
+    var layoutKind: TCSSCascadeWeight?
+    var dock: TCSSCascadeWeight?
+    var align: TCSSCascadeWeight?
+    var contentAlign: TCSSCascadeWeight?
+    var layer: TCSSCascadeWeight?
+    var layers: TCSSCascadeWeight?
     var width: TCSSCascadeWeight?
     var height: TCSSCascadeWeight?
     var widthLength: TCSSCascadeWeight?
@@ -140,6 +147,10 @@ private struct TCSSPropertyWeights {
     var dividerWidth: TCSSCascadeWeight?
     var dividerHeight: TCSSCascadeWeight?
     var spacing: TCSSCascadeWeight?
+    var opacity: TCSSCascadeWeight?
+    var textOpacity: TCSSCascadeWeight?
+    var display: TCSSCascadeWeight?
+    var visibility: TCSSCascadeWeight?
 }
 
 private extension TCSSSelector {
@@ -207,7 +218,8 @@ private extension TCSSStyle {
         _ incoming: TCSSStyle,
         weight: TCSSCascadeWeight,
         terminalWeights: inout TCSSPropertyWeights,
-        layoutWeights: inout TCSSPropertyWeights
+        layoutWeights: inout TCSSPropertyWeights,
+        visualWeights: inout TCSSPropertyWeights
     ) {
         assign(incoming.terminalStyle.foreground, to: \.terminalStyle.foreground, weight: weight, winning: &terminalWeights.foreground)
         assign(incoming.terminalStyle.background, to: \.terminalStyle.background, weight: weight, winning: &terminalWeights.background)
@@ -218,6 +230,12 @@ private extension TCSSStyle {
         assign(incoming.terminalStyle.strikethrough, to: \.terminalStyle.strikethrough, weight: weight, winning: &terminalWeights.strikethrough)
         assign(incoming.terminalStyle.inverse, to: \.terminalStyle.inverse, weight: weight, winning: &terminalWeights.inverse)
         assign(incoming.terminalStyle.blink, to: \.terminalStyle.blink, weight: weight, winning: &terminalWeights.blink)
+        assign(incoming.layout.layoutKind, to: \.layout.layoutKind, weight: weight, winning: &layoutWeights.layoutKind)
+        assign(incoming.layout.dock, to: \.layout.dock, weight: weight, winning: &layoutWeights.dock)
+        assign(incoming.layout.align, to: \.layout.align, weight: weight, winning: &layoutWeights.align)
+        assign(incoming.layout.contentAlign, to: \.layout.contentAlign, weight: weight, winning: &layoutWeights.contentAlign)
+        assign(incoming.layout.layer, to: \.layout.layer, weight: weight, winning: &layoutWeights.layer)
+        assign(incoming.layout.layers, to: \.layout.layers, weight: weight, winning: &layoutWeights.layers)
         assign(incoming.layout.width, to: \.layout.width, weight: weight, winning: &layoutWeights.width)
         assign(incoming.layout.height, to: \.layout.height, weight: weight, winning: &layoutWeights.height)
         assign(incoming.layout.widthLength, to: \.layout.widthLength, weight: weight, winning: &layoutWeights.widthLength)
@@ -236,6 +254,10 @@ private extension TCSSStyle {
         assign(incoming.layout.dividerWidth, to: \.layout.dividerWidth, weight: weight, winning: &layoutWeights.dividerWidth)
         assign(incoming.layout.dividerHeight, to: \.layout.dividerHeight, weight: weight, winning: &layoutWeights.dividerHeight)
         assign(incoming.layout.spacing, to: \.layout.spacing, weight: weight, winning: &layoutWeights.spacing)
+        assign(incoming.visual.opacity, to: \.visual.opacity, weight: weight, winning: &visualWeights.opacity)
+        assign(incoming.visual.textOpacity, to: \.visual.textOpacity, weight: weight, winning: &visualWeights.textOpacity)
+        assign(incoming.visual.display, to: \.visual.display, weight: weight, winning: &visualWeights.display)
+        assign(incoming.visual.visibility, to: \.visual.visibility, weight: weight, winning: &visualWeights.visibility)
     }
 
     mutating func assign<Value>(
