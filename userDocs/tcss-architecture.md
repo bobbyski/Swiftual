@@ -23,7 +23,7 @@ source text
 ## Boundaries
 
 - `TCSSStylesheetSource`: names a stylesheet, stores its source text, identifies its kind (`swiftDefaults`, `file`, `inline`, `generated`, or `demo`), and tracks whether it is enabled.
-- `TCSSStylesheetSourceSet`: stores the active source stack, filters disabled sources before parsing, preserves deterministic source order, and can produce a combined source preview for test harnesses or tooling.
+- `TCSSStylesheetSourceSet`: stores the active source stack, filters disabled sources before parsing, preserves deterministic source order, carries top-level variables forward through enabled sources, and can produce a combined source preview for test harnesses or tooling.
 - `TCSSStylesheetProviding`: protocol for objects that can provide a `TCSSStylesheetSource`. Demos, file pickers, generated themes, and app-level theme managers can conform without changing parser or cascade code.
 - `TCSSParser`: raw syntax parser. It should know TCSS grammar, selectors, declarations, comments, and diagnostics. It should not know Swiftual controls.
 - `TCSSStyleModelBuilder`: converts parsed declarations into typed semantic style values. It owns declaration-to-property mapping and delegates individual value parsing to `TCSSValueParser`.
@@ -31,7 +31,7 @@ source text
 - `TCSSStyleModel`: stores typed rules plus diagnostics. Rules remember optional source names and source indexes so future diagnostics can point back to the active stylesheet.
 - `TCSSLayoutStyle`: stores layout-facing declarations such as scalar dimensions, min/max constraints, padding, margin, overflow, border, position, offsets, spacing, layout kind, dock, alignment, and layer metadata. Some of these values are already applied by flow/container applicators; others are preserved for future layout surfaces.
 - `TCSSVisualStyle`: stores non-layout visual values such as `opacity`, `text-opacity`, `display`, and `visibility`. These are parsed and cascaded now; terminal rendering behavior is intentionally deferred until Swiftual has clear alpha/degradation and layout omission strategies.
-- `TCSSStyleContext` and `TCSSStyleContextNode`: describe the styled control plus its nearest-parent-first ancestor path. This is the DOM-light selector matching surface for type, ID, class, pseudo-state, child, and descendant selectors.
+- `TCSSStyleContext` and `TCSSStyleContextNode`: describe the styled control plus its nearest-parent-first ancestor path. This is the DOM-light selector matching surface for primary type names, additional type aliases, ID, class, pseudo-state, child, and descendant selectors.
 - `TCSSCascade`: applies selector matching, specificity, and source order to produce a `TCSSStyle` for one `TCSSStyleContext`.
 - `TCSSStyleResolver`: public convenience boundary that owns a model and exposes `style(for:)`. Apps should usually depend on this instead of manually wiring parser, builder, and cascade.
 - `TCSSStyleLayer`: tiny reset/fallback helper for state that must start from a pure Swift default before a TCSS patch is applied. It exists so stylesheet changes cannot accidentally inherit values from the previous stylesheet.
@@ -39,7 +39,7 @@ source text
 - `TCSSVisualApplicator`: shared interpretation for visual flow control. `display: none` does not reserve layout and does not render; `visibility: hidden` reserves layout but does not render. It can produce `FlowChild` values with those flags already applied.
 - `TCSSLayoutApplicator`: shared conversion from `TCSSLayoutStyle` into control frames, `LayoutPreferences`, and flow alignment values.
 - `TCSSLayoutPreferencesApplicator`: shared conversion from a resolved `TCSSStyle` into standalone `LayoutPreferences` and spacing values for panel-like layout surfaces.
-- `TCSSButtonApplicator`, `TCSSLabelApplicator`, `TCSSProgressBarApplicator`, `TCSSProgressStyleSetApplicator`, `TCSSTextInputApplicator`, `TCSSCheckboxApplicator`, `TCSSSwitchApplicator`, `TCSSSelectApplicator`, `TCSSScrollViewApplicator`, `TCSSRichLogApplicator`, `TCSSDataTableApplicator`, `TCSSTreeApplicator`, `TCSSModalApplicator`, `TCSSFlowContainerApplicator`, `TCSSVerticalApplicator`, `TCSSHorizontalApplicator`, `TCSSHorizontalSplitViewApplicator`, `TCSSVerticalSplitViewApplicator`, and `TCSSCommandPaletteApplicator`: first reusable control applicators. These replaced the matching demo-local styling code and set the pattern for the remaining controls.
+- `TCSSButtonApplicator`, `TCSSLabelApplicator`, `TCSSProgressBarApplicator`, `TCSSProgressStyleSetApplicator`, `TCSSTextInputApplicator`, `TCSSCheckboxApplicator`, `TCSSSwitchApplicator`, `TCSSSelectApplicator`, `TCSSScrollViewApplicator`, `TCSSRichLogApplicator`, `TCSSDataTableApplicator`, `TCSSTreeApplicator`, `TCSSModalApplicator`, `TCSSFlowContainerApplicator`, `TCSSGridApplicator`, `TCSSVerticalApplicator`, `TCSSHorizontalApplicator`, `TCSSHorizontalSplitViewApplicator`, `TCSSVerticalSplitViewApplicator`, and `TCSSCommandPaletteApplicator`: first reusable control applicators. These replaced the matching demo-local styling code and set the pattern for the remaining controls.
 
 ## Current Source Order Rule
 
@@ -70,6 +70,8 @@ let resolver = TCSSStyleResolver(sourceSet: sourceSet)
 ```
 
 Disabled sources remain available to the app as state, but they are not parsed or cascaded.
+
+Top-level variables also follow enabled source order. A later source can use variables declared by earlier enabled sources, and a later variable declaration replaces that name for following sources. Disabled sources do not contribute variables.
 
 ## Control Application Rule
 
@@ -104,7 +106,8 @@ Current reusable applicators:
 - `TCSSDataTableApplicator`: patches table row, header, alternate row, selected row, focused selected row, and frame layout values.
 - `TCSSTreeApplicator`: patches fill, row, selected, focused selected, branch, scrollbar, thumb, scrollbar width, and frame layout values.
 - `TCSSModalApplicator`: patches panel, overlay, title, normal button, focused button, disabled button, and frame layout values.
-- `TCSSFlowContainerApplicator`: patches fill, spacing, padding, border, overflow, axis for `layout: vertical`/`horizontal`, alignment, and frame layout values for the core `FlowContainer`. `layout: grid` remains deferred, and `border: vector` is intentionally accepted but rendered as no terminal border until the vector renderer exists.
+- `TCSSFlowContainerApplicator`: patches fill, spacing, padding, border, overflow, axis for `layout: vertical`/`horizontal`, alignment, and frame layout values for the core `FlowContainer`. `border: vector` is intentionally accepted but rendered as no terminal border until the vector renderer exists.
+- `TCSSGridApplicator`: patches fill, spacing as grid gutter, `grid-size`, `grid-gutter`, padding, border, and frame layout values for `Grid`.
 - `TCSSVerticalApplicator`: patches fill, spacing, alignment, and frame layout values for `Vertical`.
 - `TCSSHorizontalApplicator`: patches fill, spacing, alignment, and frame layout values for `Horizontal`.
 - `TCSSHorizontalSplitViewApplicator`: patches divider style and divider width for `HorizontalSplitView`.
@@ -142,9 +145,10 @@ The TCSS demo uses this helper while resetting demo-owned surfaces before applyi
 - `TCSSStyleResolver` exposes model diagnostics.
 - `TCSSStyleResolver.style(for:)` returns the same result as `TCSSCascade`.
 - `TCSSStyleContext` ancestor paths let child selectors require a direct parent and descendant selectors match deeper ancestors.
+- `TCSSStyleContextNode.typeNames` lets one control advertise additional Textual-style/base-style selector names while preserving its primary Swiftual type.
 - `TCSSValueParser` covers color, boolean, scalar length, signed offset, box edge, border, overflow, position, layout kind, dock, alignment, layer names, text alignment, and text style conversion directly.
 - Control applicators patch pure Swift defaults rather than replacing unrelated properties.
-- Visual behavior helper, layout preferences, button, label, progress bar, progress style set, text input, checkbox, switch, select, scroll view, rich log, data table, tree, modal, flow container, vertical container, horizontal container, and command palette applicators are tested directly, including flow alignment mapping where the target exposes it.
+- Visual behavior helper, layout preferences, button, label, progress bar, progress style set, text input, checkbox, switch, select, scroll view, rich log, data table, tree, modal, flow container, grid container, vertical container, horizontal container, and command palette applicators are tested directly, including flow alignment mapping where the target exposes it.
 - Flow containers distinguish `display: none` from `visibility: hidden`: display-none children do not consume spacing or layout space, while hidden children reserve space but skip rendering.
 - `TCSSStyleLayer` resets to pure Swift defaults before reapplying a different TCSS patch.
 - Switching active stylesheets starts from defaults and does not leak old values.

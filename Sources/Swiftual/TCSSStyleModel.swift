@@ -77,10 +77,13 @@ public struct TCSSStylesheetSourceSet: Equatable, Sendable {
     }
 
     public func parsed(using parser: TCSSParser = TCSSParser()) -> [TCSSParsedStylesheetSource] {
-        enabledSources.enumerated().map { index, source in
-            TCSSParsedStylesheetSource(
+        var variables: [String: String] = [:]
+        return enabledSources.enumerated().map { index, source in
+            let parsed = parser.parseWithVariables(source.source, inheritedVariables: variables)
+            variables = parsed.variables
+            return TCSSParsedStylesheetSource(
                 source: source,
-                stylesheet: parser.parse(source.source),
+                stylesheet: parsed.stylesheet,
                 sourceIndex: index
             )
         }
@@ -122,15 +125,142 @@ public struct TCSSStyle: Equatable, Sendable {
     public var terminalStyle: TCSSTerminalStylePatch
     public var layout: TCSSLayoutStyle
     public var visual: TCSSVisualStyle
+    public var importance: TCSSPropertyImportance
 
     public init(
         terminalStyle: TCSSTerminalStylePatch = TCSSTerminalStylePatch(),
         layout: TCSSLayoutStyle = TCSSLayoutStyle(),
-        visual: TCSSVisualStyle = TCSSVisualStyle()
+        visual: TCSSVisualStyle = TCSSVisualStyle(),
+        importance: TCSSPropertyImportance = TCSSPropertyImportance()
     ) {
         self.terminalStyle = terminalStyle
         self.layout = layout
         self.visual = visual
+        self.importance = importance
+    }
+}
+
+public struct TCSSPropertyImportance: Equatable, Sendable {
+    public var foreground: Bool?
+    public var background: Bool?
+    public var bold: Bool?
+    public var dim: Bool?
+    public var italic: Bool?
+    public var underline: Bool?
+    public var strikethrough: Bool?
+    public var inverse: Bool?
+    public var blink: Bool?
+    public var layoutKind: Bool?
+    public var dock: Bool?
+    public var align: Bool?
+    public var contentAlign: Bool?
+    public var layer: Bool?
+    public var layers: Bool?
+    public var width: Bool?
+    public var height: Bool?
+    public var widthLength: Bool?
+    public var heightLength: Bool?
+    public var minWidth: Bool?
+    public var minHeight: Bool?
+    public var maxWidth: Bool?
+    public var maxHeight: Bool?
+    public var padding: Bool?
+    public var margin: Bool?
+    public var textAlign: Bool?
+    public var overflow: Bool?
+    public var border: Bool?
+    public var position: Bool?
+    public var offset: Bool?
+    public var dividerWidth: Bool?
+    public var dividerHeight: Bool?
+    public var spacing: Bool?
+    public var gridSize: Bool?
+    public var gridGutter: Bool?
+    public var opacity: Bool?
+    public var textOpacity: Bool?
+    public var display: Bool?
+    public var visibility: Bool?
+
+    public init(
+        foreground: Bool? = nil,
+        background: Bool? = nil,
+        bold: Bool? = nil,
+        dim: Bool? = nil,
+        italic: Bool? = nil,
+        underline: Bool? = nil,
+        strikethrough: Bool? = nil,
+        inverse: Bool? = nil,
+        blink: Bool? = nil,
+        layoutKind: Bool? = nil,
+        dock: Bool? = nil,
+        align: Bool? = nil,
+        contentAlign: Bool? = nil,
+        layer: Bool? = nil,
+        layers: Bool? = nil,
+        width: Bool? = nil,
+        height: Bool? = nil,
+        widthLength: Bool? = nil,
+        heightLength: Bool? = nil,
+        minWidth: Bool? = nil,
+        minHeight: Bool? = nil,
+        maxWidth: Bool? = nil,
+        maxHeight: Bool? = nil,
+        padding: Bool? = nil,
+        margin: Bool? = nil,
+        textAlign: Bool? = nil,
+        overflow: Bool? = nil,
+        border: Bool? = nil,
+        position: Bool? = nil,
+        offset: Bool? = nil,
+        dividerWidth: Bool? = nil,
+        dividerHeight: Bool? = nil,
+        spacing: Bool? = nil,
+        gridSize: Bool? = nil,
+        gridGutter: Bool? = nil,
+        opacity: Bool? = nil,
+        textOpacity: Bool? = nil,
+        display: Bool? = nil,
+        visibility: Bool? = nil
+    ) {
+        self.foreground = foreground
+        self.background = background
+        self.bold = bold
+        self.dim = dim
+        self.italic = italic
+        self.underline = underline
+        self.strikethrough = strikethrough
+        self.inverse = inverse
+        self.blink = blink
+        self.layoutKind = layoutKind
+        self.dock = dock
+        self.align = align
+        self.contentAlign = contentAlign
+        self.layer = layer
+        self.layers = layers
+        self.width = width
+        self.height = height
+        self.widthLength = widthLength
+        self.heightLength = heightLength
+        self.minWidth = minWidth
+        self.minHeight = minHeight
+        self.maxWidth = maxWidth
+        self.maxHeight = maxHeight
+        self.padding = padding
+        self.margin = margin
+        self.textAlign = textAlign
+        self.overflow = overflow
+        self.border = border
+        self.position = position
+        self.offset = offset
+        self.dividerWidth = dividerWidth
+        self.dividerHeight = dividerHeight
+        self.spacing = spacing
+        self.gridSize = gridSize
+        self.gridGutter = gridGutter
+        self.opacity = opacity
+        self.textOpacity = textOpacity
+        self.display = display
+        self.visibility = visibility
     }
 }
 
@@ -207,6 +337,8 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
     public var dividerWidth: Int?
     public var dividerHeight: Int?
     public var spacing: Int?
+    public var gridSize: TCSSGridSize?
+    public var gridGutter: TCSSGridGutter?
 
     public init(
         layoutKind: TCSSLayoutKind? = nil,
@@ -232,7 +364,9 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         offset: Point? = nil,
         dividerWidth: Int? = nil,
         dividerHeight: Int? = nil,
-        spacing: Int? = nil
+        spacing: Int? = nil,
+        gridSize: TCSSGridSize? = nil,
+        gridGutter: TCSSGridGutter? = nil
     ) {
         self.layoutKind = layoutKind
         self.dock = dock
@@ -258,6 +392,28 @@ public struct TCSSLayoutStyle: Equatable, Sendable {
         self.dividerWidth = dividerWidth
         self.dividerHeight = dividerHeight
         self.spacing = spacing
+        self.gridSize = gridSize
+        self.gridGutter = gridGutter
+    }
+}
+
+public struct TCSSGridSize: Equatable, Sendable {
+    public var columns: Int
+    public var rows: Int?
+
+    public init(columns: Int, rows: Int? = nil) {
+        self.columns = max(1, columns)
+        self.rows = rows.map { max(1, $0) }
+    }
+}
+
+public struct TCSSGridGutter: Equatable, Sendable {
+    public var vertical: Int
+    public var horizontal: Int
+
+    public init(vertical: Int, horizontal: Int) {
+        self.vertical = max(0, vertical)
+        self.horizontal = max(0, horizontal)
     }
 }
 
@@ -347,6 +503,7 @@ public enum TCSSTextAlign: String, Equatable, Sendable {
     case left
     case center
     case right
+    case justify
 }
 
 public enum TCSSPosition: String, Equatable, Sendable {
@@ -358,9 +515,11 @@ public enum TCSSBorderKind: Equatable, Sendable {
     case none
     case single
     case double
+    case heavy
     case dashed
     case rounded
     case ascii
+    case blank
     case vector
 
     public func flowBorder(style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black)) -> FlowBorder {
@@ -371,12 +530,16 @@ public enum TCSSBorderKind: Equatable, Sendable {
             return .single(style: style)
         case .double:
             return .double(style: style)
+        case .heavy:
+            return .heavy(style: style)
         case .dashed:
             return .dashed(style: style)
         case .rounded:
             return .rounded(style: style)
         case .ascii:
             return .ascii(style: style)
+        case .blank:
+            return .blank(style: style)
         }
     }
 }
@@ -435,97 +598,162 @@ public struct TCSSStyleModelBuilder: Sendable {
 
         for declaration in declarations {
             let property = valueParser.canonicalPropertyName(declaration.property)
+            func markImportant(_ keyPath: WritableKeyPath<TCSSPropertyImportance, Bool?>) {
+                guard declaration.isImportant else { return }
+                style.importance[keyPath: keyPath] = true
+            }
+
             switch property {
             case "color", "foreground":
                 assignColor(declaration, to: \.terminalStyle.foreground, in: &style, diagnostics: &diagnostics)
+                markImportant(\.foreground)
             case "background", "background-color":
                 assignColor(declaration, to: \.terminalStyle.background, in: &style, diagnostics: &diagnostics)
+                markImportant(\.background)
             case "text-style":
                 assignTextStyle(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.bold)
+                markImportant(\.dim)
+                markImportant(\.italic)
+                markImportant(\.underline)
+                markImportant(\.strikethrough)
+                markImportant(\.inverse)
+                markImportant(\.blink)
             case "bold":
                 assignBool(declaration, to: \.terminalStyle.bold, in: &style, diagnostics: &diagnostics)
+                markImportant(\.bold)
             case "dim":
                 assignBool(declaration, to: \.terminalStyle.dim, in: &style, diagnostics: &diagnostics)
+                markImportant(\.dim)
             case "italic":
                 assignBool(declaration, to: \.terminalStyle.italic, in: &style, diagnostics: &diagnostics)
+                markImportant(\.italic)
             case "underline":
                 assignBool(declaration, to: \.terminalStyle.underline, in: &style, diagnostics: &diagnostics)
+                markImportant(\.underline)
             case "strike", "strikethrough":
                 assignBool(declaration, to: \.terminalStyle.strikethrough, in: &style, diagnostics: &diagnostics)
+                markImportant(\.strikethrough)
             case "inverse":
                 assignBool(declaration, to: \.terminalStyle.inverse, in: &style, diagnostics: &diagnostics)
+                markImportant(\.inverse)
             case "blink":
                 assignBool(declaration, to: \.terminalStyle.blink, in: &style, diagnostics: &diagnostics)
+                markImportant(\.blink)
             case "opacity":
                 assignOpacity(declaration, to: \.visual.opacity, in: &style, diagnostics: &diagnostics)
+                markImportant(\.opacity)
             case "text-opacity":
                 assignOpacity(declaration, to: \.visual.textOpacity, in: &style, diagnostics: &diagnostics)
+                markImportant(\.textOpacity)
             case "display":
                 assignDisplay(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.display)
             case "visibility":
                 assignVisibility(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.visibility)
             case "layout":
                 assignLayoutKind(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.layoutKind)
             case "dock":
                 assignDock(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.dock)
             case "align":
                 assignAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+                markImportant(\.align)
             case "align-horizontal":
                 assignHorizontalAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+                markImportant(\.align)
             case "align-vertical":
                 assignVerticalAlignment(declaration, to: \.align, in: &style, diagnostics: &diagnostics)
+                markImportant(\.align)
             case "content-align":
                 assignAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+                markImportant(\.contentAlign)
             case "content-align-horizontal":
                 assignHorizontalAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+                markImportant(\.contentAlign)
             case "content-align-vertical":
                 assignVerticalAlignment(declaration, to: \.contentAlign, in: &style, diagnostics: &diagnostics)
+                markImportant(\.contentAlign)
             case "layer":
                 assignLayer(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.layer)
             case "layers":
                 assignLayers(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.layers)
             case "width":
                 assignLayoutLength(declaration, dimension: .width, in: &style, diagnostics: &diagnostics)
+                markImportant(\.width)
+                markImportant(\.widthLength)
             case "height":
                 assignLayoutLength(declaration, dimension: .height, in: &style, diagnostics: &diagnostics)
+                markImportant(\.height)
+                markImportant(\.heightLength)
             case "min-width":
                 assignLayoutConstraint(declaration, constraint: \.minWidth, in: &style, diagnostics: &diagnostics)
+                markImportant(\.minWidth)
             case "min-height":
                 assignLayoutConstraint(declaration, constraint: \.minHeight, in: &style, diagnostics: &diagnostics)
+                markImportant(\.minHeight)
             case "max-width":
                 assignLayoutConstraint(declaration, constraint: \.maxWidth, in: &style, diagnostics: &diagnostics)
+                markImportant(\.maxWidth)
             case "max-height":
                 assignLayoutConstraint(declaration, constraint: \.maxHeight, in: &style, diagnostics: &diagnostics)
+                markImportant(\.maxHeight)
             case "padding":
                 assignBoxEdges(declaration, to: \.layout.padding, in: &style, diagnostics: &diagnostics)
+                markImportant(\.padding)
             case "margin":
                 assignBoxEdges(declaration, to: \.layout.margin, in: &style, diagnostics: &diagnostics)
+                markImportant(\.margin)
             case "text-align":
                 assignTextAlign(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.textAlign)
             case "overflow":
                 assignOverflow(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.overflow)
             case "overflow-x":
                 assignOverflowAxis(declaration, axis: .width, to: &style, diagnostics: &diagnostics)
+                markImportant(\.overflow)
             case "overflow-y":
                 assignOverflowAxis(declaration, axis: .height, to: &style, diagnostics: &diagnostics)
+                markImportant(\.overflow)
             case "border":
                 assignBorder(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.border)
             case "position":
                 assignPosition(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.position)
             case "offset":
                 assignOffset(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.offset)
             case "offset-x":
                 assignOffsetAxis(declaration, axis: .width, to: &style, diagnostics: &diagnostics)
+                markImportant(\.offset)
             case "offset-y":
                 assignOffsetAxis(declaration, axis: .height, to: &style, diagnostics: &diagnostics)
+                markImportant(\.offset)
             case "divider-width":
                 assignInt(declaration, to: \.layout.dividerWidth, in: &style, diagnostics: &diagnostics)
+                markImportant(\.dividerWidth)
             case "divider-height":
                 assignInt(declaration, to: \.layout.dividerHeight, in: &style, diagnostics: &diagnostics)
+                markImportant(\.dividerHeight)
             case "divider-size":
                 assignDividerSize(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.dividerWidth)
+                markImportant(\.dividerHeight)
             case "spacing", "gap":
                 assignInt(declaration, to: \.layout.spacing, in: &style, diagnostics: &diagnostics)
+                markImportant(\.spacing)
+            case "grid-size":
+                assignGridSize(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.gridSize)
+            case "grid-gutter":
+                assignGridGutter(declaration, to: &style, diagnostics: &diagnostics)
+                markImportant(\.gridGutter)
             default:
                 diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Unsupported TCSS property '\(declaration.property)'."))
             }
@@ -666,11 +894,11 @@ public struct TCSSStyleModelBuilder: Sendable {
     }
 
     private func assignLayer(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
-        guard let names = valueParser.parseNames(declaration.value), names.count == 1 else {
+        guard let name = valueParser.parseName(declaration.value) else {
             diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one layer name for 'layer', got '\(declaration.value)'."))
             return
         }
-        style.layout.layer = names[0]
+        style.layout.layer = name
     }
 
     private func assignLayers(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
@@ -841,5 +1069,21 @@ public struct TCSSStyleModelBuilder: Sendable {
         }
         style.layout.dividerWidth = value
         style.layout.dividerHeight = value
+    }
+
+    private func assignGridSize(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let gridSize = valueParser.parseGridSize(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one or two positive integer values for 'grid-size', got '\(declaration.value)'."))
+            return
+        }
+        style.layout.gridSize = gridSize
+    }
+
+    private func assignGridGutter(_ declaration: TCSSDeclaration, to style: inout TCSSStyle, diagnostics: inout [TCSSDiagnostic]) {
+        guard let gridGutter = valueParser.parseGridGutter(declaration.value) else {
+            diagnostics.append(TCSSDiagnostic(line: declaration.line, message: "Expected one or two non-negative integer values for 'grid-gutter', got '\(declaration.value)'."))
+            return
+        }
+        style.layout.gridGutter = gridGutter
     }
 }

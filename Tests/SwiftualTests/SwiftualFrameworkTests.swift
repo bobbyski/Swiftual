@@ -105,6 +105,31 @@ final class SwiftualFrameworkTests: XCTestCase {
         XCTAssertEqual(canvas[5, 5].style.background, selectedStyle.background)
     }
 
+    func testFlowBorderRendersHeavyAndBlankStyles() {
+        var heavyCanvas = Canvas(size: TerminalSize(columns: 6, rows: 4))
+        FlowContainer(
+            frame: Rect(x: 0, y: 0, width: 6, height: 4),
+            axis: .vertical,
+            border: .heavy(),
+            children: []
+        ).render(in: &heavyCanvas)
+
+        var blankCanvas = Canvas(size: TerminalSize(columns: 6, rows: 4))
+        FlowContainer(
+            frame: Rect(x: 0, y: 0, width: 6, height: 4),
+            axis: .vertical,
+            fillStyle: TerminalStyle(background: .blue),
+            border: .blank(style: TerminalStyle(background: .red)),
+            children: []
+        ).render(in: &blankCanvas)
+
+        XCTAssertEqual(heavyCanvas[0, 0].character, "┏")
+        XCTAssertEqual(heavyCanvas[1, 0].character, "━")
+        XCTAssertEqual(blankCanvas[0, 0].character, " ")
+        XCTAssertEqual(blankCanvas[0, 0].style.background, .red)
+        XCTAssertEqual(blankCanvas[1, 1].style.background, .blue)
+    }
+
     func testFlowChildDisplayNoneDoesNotReserveLayout() {
         var canvas = Canvas(size: TerminalSize(columns: 12, rows: 3))
         let hidden = Label("Skip", frame: Rect(x: 0, y: 0, width: 4, height: 1))
@@ -252,6 +277,37 @@ final class SwiftualFrameworkTests: XCTestCase {
         grid.render(in: &canvas)
 
         XCTAssertEqual(rowString(canvas, y: 0, width: 8), "    Show")
+    }
+
+    func testGridPaddingInsetsChildPlacement() {
+        var canvas = Canvas(size: TerminalSize(columns: 8, rows: 3))
+        let child = Label("Pad", frame: Rect(x: 0, y: 0, width: 3, height: 1))
+        let grid = Grid(
+            frame: Rect(x: 0, y: 0, width: 8, height: 3),
+            columns: 1,
+            padding: BoxEdges(top: 1, right: 0, bottom: 0, left: 2),
+            children: [FlowChild(child)]
+        )
+
+        grid.render(in: &canvas)
+
+        XCTAssertEqual(rowString(canvas, y: 0, width: 8), "        ")
+        XCTAssertEqual(rowString(canvas, y: 1, width: 8), "  Pad   ")
+    }
+
+    func testGridRowsAndSeparateGuttersAffectPlacement() {
+        var canvas = Canvas(size: TerminalSize(columns: 9, rows: 5))
+        let children = ["A", "B", "C", "D"].map {
+            FlowChild(Label($0, frame: Rect(x: 0, y: 0, width: 1, height: 1)))
+        }
+        var grid = Grid(frame: Rect(x: 0, y: 0, width: 9, height: 5), columns: 2, gutter: 1, children: children)
+        grid.rows = 2
+        grid.rowGutter = 1
+
+        grid.render(in: &canvas)
+
+        XCTAssertEqual(rowString(canvas, y: 0, width: 9), "A    B   ")
+        XCTAssertEqual(rowString(canvas, y: 3, width: 9), "C    D   ")
     }
 
     func testTerminalStyleRendersExpandedAnsiStyleCodes() {

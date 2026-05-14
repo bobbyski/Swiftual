@@ -43,6 +43,136 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(model.rules.map(\.sourceIndex), [0, 1, 2])
     }
 
+    func testStylesheetSourceSetVariablesCascadeAcrossEnabledSources() {
+        let model = TCSSStyleModelBuilder().parse([
+            TCSSStylesheetSource(name: "base.tcss", source: """
+            $accent: bright-cyan;
+            $surface: blue;
+            """),
+            TCSSStylesheetSource(name: "disabled.tcss", source: """
+            $accent: red;
+            """, isEnabled: false),
+            TCSSStylesheetSource(name: "theme.tcss", source: """
+            Button { color: $accent; background: $surface; }
+            """),
+            TCSSStylesheetSource(name: "target.tcss", source: """
+            $accent: yellow;
+            Label { color: $accent; }
+            """)
+        ])
+        let cascade = TCSSCascade(model: model)
+
+        let button = cascade.style(for: TCSSStyleContext(typeName: "Button"))
+        let label = cascade.style(for: TCSSStyleContext(typeName: "Label"))
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(button.terminalStyle.foreground, .brightCyan)
+        XCTAssertEqual(button.terminalStyle.background, .blue)
+        XCTAssertEqual(label.terminalStyle.foreground, .yellow)
+        XCTAssertEqual(model.rules.map(\.sourceName), ["theme.tcss", "target.tcss"])
+        XCTAssertEqual(model.rules.map(\.sourceIndex), [1, 2])
+    }
+
+    func testUniversalSelectorMatchesAnyContextWithZeroSpecificity() {
+        let model = TCSSStyleModelBuilder().parse("""
+        * { background: blue; color: white; }
+        Button { background: green; }
+        Screen > *:focus { color: yellow; }
+        """)
+        let cascade = TCSSCascade(model: model)
+
+        let buttonStyle = cascade.style(for: TCSSStyleContext(typeName: "Button"))
+        let labelStyle = cascade.style(for: TCSSStyleContext(typeName: "Label"))
+        let focusedChildStyle = cascade.style(
+            for: TCSSStyleContext(
+                typeName: "Input",
+                pseudoStates: ["focus"],
+                ancestors: [TCSSStyleContextNode(typeName: "Screen")]
+            )
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(buttonStyle.terminalStyle.background, .green)
+        XCTAssertEqual(buttonStyle.terminalStyle.foreground, .white)
+        XCTAssertEqual(labelStyle.terminalStyle.background, .blue)
+        XCTAssertEqual(labelStyle.terminalStyle.foreground, .white)
+        XCTAssertEqual(focusedChildStyle.terminalStyle.foreground, .yellow)
+    }
+
+    func testTypeSelectorsCanMatchAdvertisedTypeAliases() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Widget { background: blue; }
+        Button { color: yellow; }
+        Panel > Widget { width: 14; }
+        """)
+        let cascade = TCSSCascade(model: model)
+
+        let style = cascade.style(
+            for: TCSSStyleContext(
+                typeName: "Button",
+                typeNames: ["Widget"],
+                ancestors: [TCSSStyleContextNode(typeName: "FancyPanel", typeNames: ["Panel"])]
+            )
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.terminalStyle.background, .blue)
+        XCTAssertEqual(style.terminalStyle.foreground, .yellow)
+        XCTAssertEqual(style.layout.width, 14)
+    }
+
+    func testSelectorSpecificityUsesCssTupleOrdering() {
+        let manyClasses = (1...11).map { ".class\($0)" }.joined()
+        let model = TCSSStyleModelBuilder().parse("""
+        Button#primary { background: green; color: white; }
+        Button\(manyClasses) { background: red; }
+        Screen Panel Row Button { color: yellow; }
+        Button.primary { color: cyan; }
+        """)
+        let cascade = TCSSCascade(model: model)
+
+        let style = cascade.style(
+            for: TCSSStyleContext(
+                typeName: "Button",
+                id: "primary",
+                classNames: Set((1...11).map { "class\($0)" } + ["primary"]),
+                ancestors: [
+                    TCSSStyleContextNode(typeName: "Row"),
+                    TCSSStyleContextNode(typeName: "Panel"),
+                    TCSSStyleContextNode(typeName: "Screen")
+                ]
+            )
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.terminalStyle.background, .green)
+        XCTAssertEqual(style.terminalStyle.foreground, .white)
+    }
+
+    func testImportantDeclarationsBeatHigherSpecificityPerProperty() {
+        let model = TCSSStyleModelBuilder().parse("""
+        Button.primary {
+            background: red;
+            color: red;
+            width: 8;
+        }
+        Button {
+            background: green !important;
+            color: yellow;
+            width: 12 !important;
+        }
+        """)
+
+        let style = TCSSCascade(model: model).style(
+            for: TCSSStyleContext(typeName: "Button", classNames: ["primary"])
+        )
+
+        XCTAssertTrue(model.diagnostics.isEmpty)
+        XCTAssertEqual(style.terminalStyle.background, .green)
+        XCTAssertEqual(style.terminalStyle.foreground, .red)
+        XCTAssertEqual(style.layout.width, 12)
+    }
+
     func testStyleResolverOwnsModelDiagnosticsAndCascadeLookup() {
         let resolver = TCSSStyleResolver(sources: [
             TCSSStylesheetSource(name: "base.tcss", source: """
@@ -504,6 +634,41 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(container.border, .none)
     }
 
+    func testGridApplicatorPatchesFillGutterPaddingBorderAndLayout() {
+        var grid = Grid(
+            frame: Rect(x: 0, y: 0, width: 20, height: 8),
+            columns: 2,
+            gutter: 1,
+            padding: BoxEdges(0),
+            children: []
+        )
+        let style = TCSSStyle(
+            terminalStyle: TCSSTerminalStylePatch(foreground: .yellow, background: .black),
+            layout: TCSSLayoutStyle(
+                width: 32,
+                height: 9,
+                padding: TCSSBoxEdges(top: 1, right: 2, bottom: 3, left: 4),
+                border: .single,
+                spacing: 5,
+                gridSize: TCSSGridSize(columns: 3, rows: 2),
+                gridGutter: TCSSGridGutter(vertical: 1, horizontal: 4)
+            )
+        )
+
+        TCSSGridApplicator().apply(style, to: &grid)
+
+        XCTAssertEqual(grid.fillStyle?.foreground, .yellow)
+        XCTAssertEqual(grid.fillStyle?.background, .black)
+        XCTAssertEqual(grid.columns, 3)
+        XCTAssertEqual(grid.rows, 2)
+        XCTAssertEqual(grid.gutter, FlowSpacing(main: 4))
+        XCTAssertEqual(grid.rowGutter, 1)
+        XCTAssertEqual(grid.padding, BoxEdges(top: 1, right: 2, bottom: 3, left: 4))
+        XCTAssertEqual(grid.border, .single(style: TerminalStyle(foreground: .yellow, background: .black)))
+        XCTAssertEqual(grid.frame.width, 32)
+        XCTAssertEqual(grid.frame.height, 9)
+    }
+
     func testVerticalAndHorizontalApplicatorsPatchFillSpacingAndLayout() {
         var vertical = Vertical(frame: Rect(x: 0, y: 0, width: 10, height: 4), spacing: 1, children: [])
         var horizontal = Horizontal(frame: Rect(x: 0, y: 0, width: 10, height: 4), spacing: 1, children: [])
@@ -688,15 +853,19 @@ final class TCSSCascadeTests: XCTestCase {
             content-align: center middle;
             layer: base;
             layers: base overlay;
+            grid-size: 2 2;
+            grid-gutter: 1;
         }
         Panel.primary {
             dock: bottom;
             align: right bottom;
             layer: overlay;
+            grid-size: 4 3;
         }
         Panel {
             layout: horizontal;
             layers: base overlay modal;
+            grid-gutter: 2 3;
         }
         """)
 
@@ -711,5 +880,7 @@ final class TCSSCascadeTests: XCTestCase {
         XCTAssertEqual(style.layout.contentAlign, TCSSAlignment(horizontal: .center, vertical: .middle))
         XCTAssertEqual(style.layout.layer, "overlay")
         XCTAssertEqual(style.layout.layers, ["base", "overlay", "modal"])
+        XCTAssertEqual(style.layout.gridSize, TCSSGridSize(columns: 4, rows: 3))
+        XCTAssertEqual(style.layout.gridGutter, TCSSGridGutter(vertical: 2, horizontal: 3))
     }
 }

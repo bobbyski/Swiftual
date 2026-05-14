@@ -200,6 +200,8 @@ public struct TCSSLabelApplicator: TCSSStyleApplying {
             .center
         case .right:
             .right
+        case .justify:
+            .left
         }
     }
 }
@@ -578,6 +580,40 @@ public struct TCSSFlowContainerApplicator: TCSSStyleApplying {
             target.axis = layoutApplicator.flowAxis(from: layoutKind, fallback: target.axis)
         }
         target.alignment = layoutApplicator.flowAlignment(from: style.layout, fallback: target.alignment)
+        target.frame = layoutApplicator.apply(style.layout, to: target.frame)
+    }
+}
+
+public struct TCSSGridApplicator: TCSSStyleApplying {
+    public var layoutApplicator: TCSSLayoutApplicator
+
+    public init(layoutApplicator: TCSSLayoutApplicator = TCSSLayoutApplicator()) {
+        self.layoutApplicator = layoutApplicator
+    }
+
+    public func apply(_ style: TCSSStyle, to target: inout Grid) {
+        if style.terminalStyle != TCSSTerminalStylePatch() {
+            target.fillStyle = style.terminalStyle.applied(to: target.fillStyle ?? .plain)
+        }
+        if let spacing = style.layout.spacing {
+            target.gutter = FlowSpacing(main: spacing)
+            target.rowGutter = spacing
+        }
+        if let gridSize = style.layout.gridSize {
+            target.columns = gridSize.columns
+            target.rows = gridSize.rows
+        }
+        if let gridGutter = style.layout.gridGutter {
+            target.gutter = FlowSpacing(main: gridGutter.horizontal)
+            target.rowGutter = gridGutter.vertical
+        }
+        if let padding = style.layout.padding {
+            target.padding = BoxEdges(top: padding.top, right: padding.right, bottom: padding.bottom, left: padding.left)
+        }
+        if let border = style.layout.border {
+            let borderStyle = style.terminalStyle.applied(to: target.border.style)
+            target.border = border.flowBorder(style: borderStyle)
+        }
         target.frame = layoutApplicator.apply(style.layout, to: target.frame)
     }
 }

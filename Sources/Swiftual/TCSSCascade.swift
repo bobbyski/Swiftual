@@ -2,17 +2,20 @@ import Foundation
 
 public struct TCSSStyleContextNode: Equatable, Sendable {
     public var typeName: String
+    public var typeNames: Set<String>
     public var id: String?
     public var classNames: Set<String>
     public var pseudoStates: Set<String>
 
     public init(
         typeName: String,
+        typeNames: Set<String> = [],
         id: String? = nil,
         classNames: Set<String> = [],
         pseudoStates: Set<String> = []
     ) {
         self.typeName = typeName
+        self.typeNames = typeNames.union([typeName])
         self.id = id
         self.classNames = classNames
         self.pseudoStates = pseudoStates
@@ -25,6 +28,7 @@ public struct TCSSStyleContext: Equatable, Sendable {
 
     public init(
         typeName: String,
+        typeNames: Set<String> = [],
         id: String? = nil,
         classNames: Set<String> = [],
         pseudoStates: Set<String> = [],
@@ -32,6 +36,7 @@ public struct TCSSStyleContext: Equatable, Sendable {
     ) {
         self.node = TCSSStyleContextNode(
             typeName: typeName,
+            typeNames: typeNames,
             id: id,
             classNames: classNames,
             pseudoStates: pseudoStates
@@ -62,12 +67,14 @@ public struct TCSSStyleContext: Equatable, Sendable {
 
     public func child(
         typeName: String,
+        typeNames: Set<String> = [],
         id: String? = nil,
         classNames: Set<String> = [],
         pseudoStates: Set<String> = []
     ) -> TCSSStyleContext {
         TCSSStyleContext(
             typeName: typeName,
+            typeNames: typeNames,
             id: id,
             classNames: classNames,
             pseudoStates: pseudoStates,
@@ -92,7 +99,7 @@ public struct TCSSCascade: Sendable {
         for (ruleIndex, rule) in model.rules.enumerated() {
             for selector in rule.selectors {
                 guard selector.matches(context) else { continue }
-                let weight = TCSSCascadeWeight(specificity: selector.specificity, sourceOrder: ruleIndex)
+                let weight = TCSSCascadeWeight(isImportant: false, specificity: selector.specificity, sourceOrder: ruleIndex)
                 resolved.merge(rule.style, weight: weight, terminalWeights: &winningTerminal, layoutWeights: &winningLayout, visualWeights: &winningVisual)
             }
         }
@@ -102,14 +109,34 @@ public struct TCSSCascade: Sendable {
 }
 
 private struct TCSSCascadeWeight: Comparable {
-    var specificity: Int
+    var isImportant: Bool
+    var specificity: TCSSSelectorSpecificity
     var sourceOrder: Int
 
     static func < (lhs: TCSSCascadeWeight, rhs: TCSSCascadeWeight) -> Bool {
+        if lhs.isImportant != rhs.isImportant {
+            return !lhs.isImportant && rhs.isImportant
+        }
         if lhs.specificity != rhs.specificity {
             return lhs.specificity < rhs.specificity
         }
         return lhs.sourceOrder < rhs.sourceOrder
+    }
+}
+
+private struct TCSSSelectorSpecificity: Comparable, Equatable {
+    var ids: Int
+    var classes: Int
+    var types: Int
+
+    static func < (lhs: TCSSSelectorSpecificity, rhs: TCSSSelectorSpecificity) -> Bool {
+        if lhs.ids != rhs.ids {
+            return lhs.ids < rhs.ids
+        }
+        if lhs.classes != rhs.classes {
+            return lhs.classes < rhs.classes
+        }
+        return lhs.types < rhs.types
     }
 }
 
@@ -147,6 +174,8 @@ private struct TCSSPropertyWeights {
     var dividerWidth: TCSSCascadeWeight?
     var dividerHeight: TCSSCascadeWeight?
     var spacing: TCSSCascadeWeight?
+    var gridSize: TCSSCascadeWeight?
+    var gridGutter: TCSSCascadeWeight?
     var opacity: TCSSCascadeWeight?
     var textOpacity: TCSSCascadeWeight?
     var display: TCSSCascadeWeight?
@@ -154,13 +183,13 @@ private struct TCSSPropertyWeights {
 }
 
 private extension TCSSSelector {
-    var specificity: Int {
-        segments.reduce(0) { partial, segment in
-            partial
-                + (segment.id == nil ? 0 : 100)
-                + (segment.classNames.count * 10)
-                + (segment.pseudoStates.count * 10)
-                + (segment.typeName == nil ? 0 : 1)
+    var specificity: TCSSSelectorSpecificity {
+        segments.reduce(TCSSSelectorSpecificity(ids: 0, classes: 0, types: 0)) { partial, segment in
+            TCSSSelectorSpecificity(
+                ids: partial.ids + (segment.id == nil ? 0 : 1),
+                classes: partial.classes + segment.classNames.count + segment.pseudoStates.count,
+                types: partial.types + ((segment.typeName == nil || segment.typeName == "*") ? 0 : 1)
+            )
         }
     }
 
@@ -197,7 +226,7 @@ private extension TCSSSelector {
 
 private extension TCSSSelectorSegment {
     func matches(_ context: TCSSStyleContextNode) -> Bool {
-        if let typeName, typeName != context.typeName {
+        if let typeName, typeName != "*", !context.typeNames.contains(typeName) {
             return false
         }
         if let id, id != context.id {
@@ -221,56 +250,61 @@ private extension TCSSStyle {
         layoutWeights: inout TCSSPropertyWeights,
         visualWeights: inout TCSSPropertyWeights
     ) {
-        assign(incoming.terminalStyle.foreground, to: \.terminalStyle.foreground, weight: weight, winning: &terminalWeights.foreground)
-        assign(incoming.terminalStyle.background, to: \.terminalStyle.background, weight: weight, winning: &terminalWeights.background)
-        assign(incoming.terminalStyle.bold, to: \.terminalStyle.bold, weight: weight, winning: &terminalWeights.bold)
-        assign(incoming.terminalStyle.dim, to: \.terminalStyle.dim, weight: weight, winning: &terminalWeights.dim)
-        assign(incoming.terminalStyle.italic, to: \.terminalStyle.italic, weight: weight, winning: &terminalWeights.italic)
-        assign(incoming.terminalStyle.underline, to: \.terminalStyle.underline, weight: weight, winning: &terminalWeights.underline)
-        assign(incoming.terminalStyle.strikethrough, to: \.terminalStyle.strikethrough, weight: weight, winning: &terminalWeights.strikethrough)
-        assign(incoming.terminalStyle.inverse, to: \.terminalStyle.inverse, weight: weight, winning: &terminalWeights.inverse)
-        assign(incoming.terminalStyle.blink, to: \.terminalStyle.blink, weight: weight, winning: &terminalWeights.blink)
-        assign(incoming.layout.layoutKind, to: \.layout.layoutKind, weight: weight, winning: &layoutWeights.layoutKind)
-        assign(incoming.layout.dock, to: \.layout.dock, weight: weight, winning: &layoutWeights.dock)
-        assign(incoming.layout.align, to: \.layout.align, weight: weight, winning: &layoutWeights.align)
-        assign(incoming.layout.contentAlign, to: \.layout.contentAlign, weight: weight, winning: &layoutWeights.contentAlign)
-        assign(incoming.layout.layer, to: \.layout.layer, weight: weight, winning: &layoutWeights.layer)
-        assign(incoming.layout.layers, to: \.layout.layers, weight: weight, winning: &layoutWeights.layers)
-        assign(incoming.layout.width, to: \.layout.width, weight: weight, winning: &layoutWeights.width)
-        assign(incoming.layout.height, to: \.layout.height, weight: weight, winning: &layoutWeights.height)
-        assign(incoming.layout.widthLength, to: \.layout.widthLength, weight: weight, winning: &layoutWeights.widthLength)
-        assign(incoming.layout.heightLength, to: \.layout.heightLength, weight: weight, winning: &layoutWeights.heightLength)
-        assign(incoming.layout.minWidth, to: \.layout.minWidth, weight: weight, winning: &layoutWeights.minWidth)
-        assign(incoming.layout.minHeight, to: \.layout.minHeight, weight: weight, winning: &layoutWeights.minHeight)
-        assign(incoming.layout.maxWidth, to: \.layout.maxWidth, weight: weight, winning: &layoutWeights.maxWidth)
-        assign(incoming.layout.maxHeight, to: \.layout.maxHeight, weight: weight, winning: &layoutWeights.maxHeight)
-        assign(incoming.layout.padding, to: \.layout.padding, weight: weight, winning: &layoutWeights.padding)
-        assign(incoming.layout.margin, to: \.layout.margin, weight: weight, winning: &layoutWeights.margin)
-        assign(incoming.layout.textAlign, to: \.layout.textAlign, weight: weight, winning: &layoutWeights.textAlign)
-        assign(incoming.layout.overflow, to: \.layout.overflow, weight: weight, winning: &layoutWeights.overflow)
-        assign(incoming.layout.border, to: \.layout.border, weight: weight, winning: &layoutWeights.border)
-        assign(incoming.layout.position, to: \.layout.position, weight: weight, winning: &layoutWeights.position)
-        assign(incoming.layout.offset, to: \.layout.offset, weight: weight, winning: &layoutWeights.offset)
-        assign(incoming.layout.dividerWidth, to: \.layout.dividerWidth, weight: weight, winning: &layoutWeights.dividerWidth)
-        assign(incoming.layout.dividerHeight, to: \.layout.dividerHeight, weight: weight, winning: &layoutWeights.dividerHeight)
-        assign(incoming.layout.spacing, to: \.layout.spacing, weight: weight, winning: &layoutWeights.spacing)
-        assign(incoming.visual.opacity, to: \.visual.opacity, weight: weight, winning: &visualWeights.opacity)
-        assign(incoming.visual.textOpacity, to: \.visual.textOpacity, weight: weight, winning: &visualWeights.textOpacity)
-        assign(incoming.visual.display, to: \.visual.display, weight: weight, winning: &visualWeights.display)
-        assign(incoming.visual.visibility, to: \.visual.visibility, weight: weight, winning: &visualWeights.visibility)
+        assign(incoming.terminalStyle.foreground, to: \.terminalStyle.foreground, weight: weight, isImportant: incoming.importance.foreground, winning: &terminalWeights.foreground)
+        assign(incoming.terminalStyle.background, to: \.terminalStyle.background, weight: weight, isImportant: incoming.importance.background, winning: &terminalWeights.background)
+        assign(incoming.terminalStyle.bold, to: \.terminalStyle.bold, weight: weight, isImportant: incoming.importance.bold, winning: &terminalWeights.bold)
+        assign(incoming.terminalStyle.dim, to: \.terminalStyle.dim, weight: weight, isImportant: incoming.importance.dim, winning: &terminalWeights.dim)
+        assign(incoming.terminalStyle.italic, to: \.terminalStyle.italic, weight: weight, isImportant: incoming.importance.italic, winning: &terminalWeights.italic)
+        assign(incoming.terminalStyle.underline, to: \.terminalStyle.underline, weight: weight, isImportant: incoming.importance.underline, winning: &terminalWeights.underline)
+        assign(incoming.terminalStyle.strikethrough, to: \.terminalStyle.strikethrough, weight: weight, isImportant: incoming.importance.strikethrough, winning: &terminalWeights.strikethrough)
+        assign(incoming.terminalStyle.inverse, to: \.terminalStyle.inverse, weight: weight, isImportant: incoming.importance.inverse, winning: &terminalWeights.inverse)
+        assign(incoming.terminalStyle.blink, to: \.terminalStyle.blink, weight: weight, isImportant: incoming.importance.blink, winning: &terminalWeights.blink)
+        assign(incoming.layout.layoutKind, to: \.layout.layoutKind, weight: weight, isImportant: incoming.importance.layoutKind, winning: &layoutWeights.layoutKind)
+        assign(incoming.layout.dock, to: \.layout.dock, weight: weight, isImportant: incoming.importance.dock, winning: &layoutWeights.dock)
+        assign(incoming.layout.align, to: \.layout.align, weight: weight, isImportant: incoming.importance.align, winning: &layoutWeights.align)
+        assign(incoming.layout.contentAlign, to: \.layout.contentAlign, weight: weight, isImportant: incoming.importance.contentAlign, winning: &layoutWeights.contentAlign)
+        assign(incoming.layout.layer, to: \.layout.layer, weight: weight, isImportant: incoming.importance.layer, winning: &layoutWeights.layer)
+        assign(incoming.layout.layers, to: \.layout.layers, weight: weight, isImportant: incoming.importance.layers, winning: &layoutWeights.layers)
+        assign(incoming.layout.width, to: \.layout.width, weight: weight, isImportant: incoming.importance.width, winning: &layoutWeights.width)
+        assign(incoming.layout.height, to: \.layout.height, weight: weight, isImportant: incoming.importance.height, winning: &layoutWeights.height)
+        assign(incoming.layout.widthLength, to: \.layout.widthLength, weight: weight, isImportant: incoming.importance.widthLength, winning: &layoutWeights.widthLength)
+        assign(incoming.layout.heightLength, to: \.layout.heightLength, weight: weight, isImportant: incoming.importance.heightLength, winning: &layoutWeights.heightLength)
+        assign(incoming.layout.minWidth, to: \.layout.minWidth, weight: weight, isImportant: incoming.importance.minWidth, winning: &layoutWeights.minWidth)
+        assign(incoming.layout.minHeight, to: \.layout.minHeight, weight: weight, isImportant: incoming.importance.minHeight, winning: &layoutWeights.minHeight)
+        assign(incoming.layout.maxWidth, to: \.layout.maxWidth, weight: weight, isImportant: incoming.importance.maxWidth, winning: &layoutWeights.maxWidth)
+        assign(incoming.layout.maxHeight, to: \.layout.maxHeight, weight: weight, isImportant: incoming.importance.maxHeight, winning: &layoutWeights.maxHeight)
+        assign(incoming.layout.padding, to: \.layout.padding, weight: weight, isImportant: incoming.importance.padding, winning: &layoutWeights.padding)
+        assign(incoming.layout.margin, to: \.layout.margin, weight: weight, isImportant: incoming.importance.margin, winning: &layoutWeights.margin)
+        assign(incoming.layout.textAlign, to: \.layout.textAlign, weight: weight, isImportant: incoming.importance.textAlign, winning: &layoutWeights.textAlign)
+        assign(incoming.layout.overflow, to: \.layout.overflow, weight: weight, isImportant: incoming.importance.overflow, winning: &layoutWeights.overflow)
+        assign(incoming.layout.border, to: \.layout.border, weight: weight, isImportant: incoming.importance.border, winning: &layoutWeights.border)
+        assign(incoming.layout.position, to: \.layout.position, weight: weight, isImportant: incoming.importance.position, winning: &layoutWeights.position)
+        assign(incoming.layout.offset, to: \.layout.offset, weight: weight, isImportant: incoming.importance.offset, winning: &layoutWeights.offset)
+        assign(incoming.layout.dividerWidth, to: \.layout.dividerWidth, weight: weight, isImportant: incoming.importance.dividerWidth, winning: &layoutWeights.dividerWidth)
+        assign(incoming.layout.dividerHeight, to: \.layout.dividerHeight, weight: weight, isImportant: incoming.importance.dividerHeight, winning: &layoutWeights.dividerHeight)
+        assign(incoming.layout.spacing, to: \.layout.spacing, weight: weight, isImportant: incoming.importance.spacing, winning: &layoutWeights.spacing)
+        assign(incoming.layout.gridSize, to: \.layout.gridSize, weight: weight, isImportant: incoming.importance.gridSize, winning: &layoutWeights.gridSize)
+        assign(incoming.layout.gridGutter, to: \.layout.gridGutter, weight: weight, isImportant: incoming.importance.gridGutter, winning: &layoutWeights.gridGutter)
+        assign(incoming.visual.opacity, to: \.visual.opacity, weight: weight, isImportant: incoming.importance.opacity, winning: &visualWeights.opacity)
+        assign(incoming.visual.textOpacity, to: \.visual.textOpacity, weight: weight, isImportant: incoming.importance.textOpacity, winning: &visualWeights.textOpacity)
+        assign(incoming.visual.display, to: \.visual.display, weight: weight, isImportant: incoming.importance.display, winning: &visualWeights.display)
+        assign(incoming.visual.visibility, to: \.visual.visibility, weight: weight, isImportant: incoming.importance.visibility, winning: &visualWeights.visibility)
     }
 
     mutating func assign<Value>(
         _ value: Value?,
         to keyPath: WritableKeyPath<TCSSStyle, Value?>,
         weight: TCSSCascadeWeight,
+        isImportant: Bool?,
         winning: inout TCSSCascadeWeight?
     ) {
         guard let value else { return }
-        if let winning, winning > weight {
+        var propertyWeight = weight
+        propertyWeight.isImportant = isImportant == true
+        if let winning, winning > propertyWeight {
             return
         }
         self[keyPath: keyPath] = value
-        winning = weight
+        winning = propertyWeight
     }
 }

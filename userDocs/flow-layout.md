@@ -32,7 +32,9 @@ let stack = Vertical(frame: frame, border: .single(), borderTitle: "Vertical", c
 let row = Horizontal(frame: frame, border: .single(), borderTitle: "Horizontal", children: children)
 let group = VerticalGroup(frame: frame, children: flowChildren)
 let scroller = VerticalScroll(frame: frame, scrollOffset: 2, children: flowChildren)
-let grid = Grid(frame: frame, columns: 2, gutter: 1, borderTitle: "Grid", children: flowChildren)
+var grid = Grid(frame: frame, columns: 2, gutter: 1, padding: BoxEdges(1), borderTitle: "Grid", children: flowChildren)
+grid.rows = 3
+grid.rowGutter = 1
 ```
 
 Textual's border label pattern is supported directly:
@@ -131,4 +133,6 @@ Margins live on `LayoutPreferences` and are applied outside the child frame. On 
 - Single, double, dashed, rounded, and ASCII border character sets render the expected edge and corner glyphs.
 - Scrollable vertical flow respects `scrollOffset`.
 - Grid places children in multiple columns with gutters.
+- Grid padding insets child placement inside the optional border.
+- Grid can optionally set `rows`; when rows are set, row height is divided across the available content height and `rowGutter` separates rows.
 - The demo renders titled bordered examples for vertical and horizontal containers.

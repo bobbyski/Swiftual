@@ -64,11 +64,13 @@ public struct TCSSDeclaration: Equatable, Sendable {
     public var property: String
     public var value: String
     public var line: Int
+    public var isImportant: Bool
 
-    public init(property: String, value: String, line: Int) {
+    public init(property: String, value: String, line: Int, isImportant: Bool = false) {
         self.property = property
         self.value = value
         self.line = line
+        self.isImportant = isImportant
     }
 }
 
@@ -86,9 +88,18 @@ public struct TCSSParser: Sendable {
     public init() {}
 
     public func parse(_ source: String) -> TCSSStylesheet {
+        parseWithVariables(source, inheritedVariables: [:]).stylesheet
+    }
+
+    func parseWithVariables(
+        _ source: String,
+        inheritedVariables: [String: String]
+    ) -> (stylesheet: TCSSStylesheet, variables: [String: String]) {
         let stripped = stripComments(from: source)
-        let characters = Array(stripped)
-        var diagnostics: [TCSSDiagnostic] = []
+        let variableExtraction = extractVariables(from: stripped)
+        let characters = Array(variableExtraction.source)
+        let variables = inheritedVariables.merging(variableExtraction.variables) { _, new in new }
+        var diagnostics = variableExtraction.diagnostics
         var rules: [TCSSRule] = []
         var index = 0
 
@@ -127,18 +138,28 @@ public struct TCSSParser: Sendable {
             guard index < characters.count else {
                 diagnostics.append(TCSSDiagnostic(line: selectorLine, message: "Unclosed declaration block for selector '\(selectorText)'."))
                 let block = String(characters[blockStart..<characters.count])
-                let declarations = parseDeclarations(block, baseLine: lineNumber(in: characters, at: blockStart), diagnostics: &diagnostics)
+                let declarations = parseDeclarations(
+                    block,
+                    baseLine: lineNumber(in: characters, at: blockStart),
+                    variables: variables,
+                    diagnostics: &diagnostics
+                )
                 appendRule(selectorText: selectorText, selectorLine: selectorLine, declarations: declarations, rules: &rules, diagnostics: &diagnostics)
                 break
             }
 
             let block = String(characters[blockStart..<index])
-            let declarations = parseDeclarations(block, baseLine: lineNumber(in: characters, at: blockStart), diagnostics: &diagnostics)
+            let declarations = parseDeclarations(
+                block,
+                baseLine: lineNumber(in: characters, at: blockStart),
+                variables: variables,
+                diagnostics: &diagnostics
+            )
             appendRule(selectorText: selectorText, selectorLine: selectorLine, declarations: declarations, rules: &rules, diagnostics: &diagnostics)
             index += 1
         }
 
-        return TCSSStylesheet(rules: rules, diagnostics: diagnostics)
+        return (TCSSStylesheet(rules: rules, diagnostics: diagnostics), variables)
     }
 
     private func appendRule(
@@ -168,7 +189,12 @@ public struct TCSSParser: Sendable {
         rules.append(TCSSRule(selectors: selectors, declarations: declarations, line: selectorLine))
     }
 
-    private func parseDeclarations(_ block: String, baseLine: Int, diagnostics: inout [TCSSDiagnostic]) -> [TCSSDeclaration] {
+    private func parseDeclarations(
+        _ block: String,
+        baseLine: Int,
+        variables: [String: String],
+        diagnostics: inout [TCSSDiagnostic]
+    ) -> [TCSSDeclaration] {
         var declarations: [TCSSDeclaration] = []
         var line = baseLine
 
@@ -198,10 +224,166 @@ public struct TCSSParser: Sendable {
                 continue
             }
 
-            declarations.append(TCSSDeclaration(property: String(property), value: String(value), line: entryLine))
+            let resolvedValue = resolveVariables(in: String(value), variables: variables, line: entryLine, diagnostics: &diagnostics)
+            let importance = stripImportant(from: resolvedValue)
+            declarations.append(TCSSDeclaration(property: String(property), value: importance.value, line: entryLine, isImportant: importance.isImportant))
         }
 
         return declarations
+    }
+
+    private func stripImportant(from value: String) -> (value: String, isImportant: Bool) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let bangIndex = trimmed.lastIndex(of: "!") else {
+            return (trimmed, false)
+        }
+
+        let suffix = trimmed[bangIndex...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard suffix == "!important" else {
+            return (trimmed, false)
+        }
+
+        let valueWithoutImportant = trimmed[..<bangIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        return (String(valueWithoutImportant), true)
+    }
+
+    private struct VariableExtraction {
+        var source: String
+        var variables: [String: String]
+        var diagnostics: [TCSSDiagnostic]
+    }
+
+    private func extractVariables(from source: String) -> VariableExtraction {
+        var characters = Array(source)
+        var variables: [String: String] = [:]
+        var diagnostics: [TCSSDiagnostic] = []
+        var index = 0
+        var blockDepth = 0
+
+        while index < characters.count {
+            let character = characters[index]
+            if character == "{" {
+                blockDepth += 1
+                index += 1
+                continue
+            }
+            if character == "}" {
+                blockDepth = max(0, blockDepth - 1)
+                index += 1
+                continue
+            }
+            guard blockDepth == 0, character == "$" else {
+                index += 1
+                continue
+            }
+
+            let variableStart = index
+            let line = lineNumber(in: characters, at: variableStart)
+            index += 1
+            let nameStart = index
+            while index < characters.count, isSelectorNameCharacter(characters[index]) {
+                index += 1
+            }
+            let name = String(characters[nameStart..<index])
+            guard !name.isEmpty else {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "TCSS variable is missing a name."))
+                index += 1
+                continue
+            }
+
+            while index < characters.count, characters[index].isWhitespace {
+                index += 1
+            }
+            guard index < characters.count, characters[index] == ":" else {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "Expected ':' after TCSS variable '$\(name)'."))
+                continue
+            }
+            index += 1
+            let valueStart = index
+            while index < characters.count, characters[index] != ";" {
+                index += 1
+            }
+            guard index < characters.count else {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "Expected ';' after TCSS variable '$\(name)'."))
+                break
+            }
+
+            let value = trimmedString(characters[valueStart..<index])
+            if value.isEmpty {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "TCSS variable '$\(name)' is missing a value."))
+            } else {
+                variables[name] = value
+            }
+
+            for removeIndex in variableStart...index where characters.indices.contains(removeIndex) {
+                if characters[removeIndex] != "\n" {
+                    characters[removeIndex] = " "
+                }
+            }
+            index += 1
+        }
+
+        return VariableExtraction(source: String(characters), variables: variables, diagnostics: diagnostics)
+    }
+
+    private func resolveVariables(
+        in value: String,
+        variables: [String: String],
+        line: Int,
+        diagnostics: inout [TCSSDiagnostic]
+    ) -> String {
+        var stack: [String] = []
+        return resolveVariables(in: value, variables: variables, line: line, diagnostics: &diagnostics, stack: &stack)
+    }
+
+    private func resolveVariables(
+        in value: String,
+        variables: [String: String],
+        line: Int,
+        diagnostics: inout [TCSSDiagnostic],
+        stack: inout [String]
+    ) -> String {
+        let characters = Array(value)
+        var output = ""
+        var index = 0
+
+        while index < characters.count {
+            guard characters[index] == "$" else {
+                output.append(characters[index])
+                index += 1
+                continue
+            }
+
+            let dollarIndex = index
+            index += 1
+            let nameStart = index
+            while index < characters.count, isSelectorNameCharacter(characters[index]) {
+                index += 1
+            }
+            let name = String(characters[nameStart..<index])
+            guard !name.isEmpty else {
+                output.append("$")
+                continue
+            }
+            guard let variableValue = variables[name] else {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "Unknown TCSS variable '$\(name)'."))
+                output.append(String(characters[dollarIndex..<index]))
+                continue
+            }
+            guard !stack.contains(name) else {
+                diagnostics.append(TCSSDiagnostic(line: line, message: "Cyclic TCSS variable reference involving '$\(name)'."))
+                output.append(String(characters[dollarIndex..<index]))
+                continue
+            }
+
+            stack.append(name)
+            output += resolveVariables(in: variableValue, variables: variables, line: line, diagnostics: &diagnostics, stack: &stack)
+            _ = stack.popLast()
+        }
+
+        return output
     }
 
     private func parseSelector(_ raw: String) -> TCSSSelector {
@@ -254,7 +436,10 @@ public struct TCSSParser: Sendable {
 
         while index < characters.count {
             let marker = characters[index]
-            if marker == "." || marker == ":" || marker == "#" {
+            if marker == "*" {
+                typeName = "*"
+                index += 1
+            } else if marker == "." || marker == ":" || marker == "#" {
                 index += 1
                 let start = index
                 while index < characters.count, isSelectorNameCharacter(characters[index]) {

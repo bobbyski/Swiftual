@@ -48,6 +48,15 @@ public struct BorderCharacters: Equatable, Sendable {
         vertical: "║"
     )
 
+    public static let heavy = BorderCharacters(
+        topLeft: "┏",
+        topRight: "┓",
+        bottomLeft: "┗",
+        bottomRight: "┛",
+        horizontal: "━",
+        vertical: "┃"
+    )
+
     public static let dashed = BorderCharacters(
         topLeft: "┌",
         topRight: "┐",
@@ -73,6 +82,15 @@ public struct BorderCharacters: Equatable, Sendable {
         bottomRight: "+",
         horizontal: "-",
         vertical: "|"
+    )
+
+    public static let blank = BorderCharacters(
+        topLeft: " ",
+        topRight: " ",
+        bottomLeft: " ",
+        bottomRight: " ",
+        horizontal: " ",
+        vertical: " "
     )
 }
 
@@ -140,6 +158,24 @@ public struct FlowBorder: Equatable, Sendable {
         )
     }
 
+    public static func heavy(
+        style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        titleStyle: TerminalStyle? = nil,
+        subtitleStyle: TerminalStyle? = nil,
+        titleAlignment: BorderLabelAlignment = .left,
+        subtitleAlignment: BorderLabelAlignment = .right
+    ) -> FlowBorder {
+        FlowBorder(
+            isVisible: true,
+            characters: .heavy,
+            style: style,
+            titleStyle: titleStyle ?? style,
+            subtitleStyle: subtitleStyle ?? titleStyle ?? style,
+            titleAlignment: titleAlignment,
+            subtitleAlignment: subtitleAlignment
+        )
+    }
+
     public static func dashed(
         style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
         titleStyle: TerminalStyle? = nil,
@@ -186,6 +222,24 @@ public struct FlowBorder: Equatable, Sendable {
         FlowBorder(
             isVisible: true,
             characters: .ascii,
+            style: style,
+            titleStyle: titleStyle ?? style,
+            subtitleStyle: subtitleStyle ?? titleStyle ?? style,
+            titleAlignment: titleAlignment,
+            subtitleAlignment: subtitleAlignment
+        )
+    }
+
+    public static func blank(
+        style: TerminalStyle = TerminalStyle(foreground: .brightWhite, background: .black),
+        titleStyle: TerminalStyle? = nil,
+        subtitleStyle: TerminalStyle? = nil,
+        titleAlignment: BorderLabelAlignment = .left,
+        subtitleAlignment: BorderLabelAlignment = .right
+    ) -> FlowBorder {
+        FlowBorder(
+            isVisible: true,
+            characters: .blank,
             style: style,
             titleStyle: titleStyle ?? style,
             subtitleStyle: subtitleStyle ?? titleStyle ?? style,
@@ -690,17 +744,33 @@ public struct ScrollableContainer: CanvasRenderable {
 public struct Grid: CanvasRenderable {
     public var frame: Rect
     public var columns: Int
+    public var rows: Int?
     public var gutter: FlowSpacing
+    public var rowGutter: Int
+    public var padding: BoxEdges
     public var fillStyle: TerminalStyle?
     public var border: FlowBorder
     public var borderTitle: String?
     public var borderSubtitle: String?
     public var children: [FlowChild]
 
-    public init(frame: Rect, columns: Int, gutter: Int = 0, fillStyle: TerminalStyle? = nil, border: FlowBorder = .none, borderTitle: String? = nil, borderSubtitle: String? = nil, children: [FlowChild]) {
+    public init(
+        frame: Rect,
+        columns: Int,
+        gutter: Int = 0,
+        padding: BoxEdges = .zero,
+        fillStyle: TerminalStyle? = nil,
+        border: FlowBorder = .none,
+        borderTitle: String? = nil,
+        borderSubtitle: String? = nil,
+        children: [FlowChild]
+    ) {
         self.frame = frame
         self.columns = max(1, columns)
+        self.rows = nil
         self.gutter = FlowSpacing(main: gutter)
+        self.rowGutter = max(0, gutter)
+        self.padding = padding
         self.fillStyle = fillStyle
         self.border = border
         self.borderTitle = borderTitle
@@ -710,17 +780,25 @@ public struct Grid: CanvasRenderable {
 
     public func render(in canvas: inout Canvas) {
         FlowContainer(frame: frame, axis: .vertical, fillStyle: fillStyle, border: border, borderTitle: borderTitle, borderSubtitle: borderSubtitle, children: []).render(in: &canvas)
-        let content = border.isVisible ? BoxEdges(1).inset(frame) : frame
+        let chromeFrame = border.isVisible ? BoxEdges(1).inset(frame) : frame
+        let content = padding.inset(chromeFrame)
         guard content.width > 0, content.height > 0 else { return }
         let totalGutter = max(0, columns - 1) * gutter.main
         let cellWidth = max(1, (content.width - totalGutter) / columns)
         let activeIndices = children.indices.filter { children[$0].reservesLayout }
-        let cellHeight = activeIndices.map { children[$0].intrinsicSize.height }.max() ?? 1
+        let cellHeight: Int
+        if let rows {
+            let totalRowGutter = max(0, rows - 1) * rowGutter
+            cellHeight = max(1, (content.height - totalRowGutter) / rows)
+        } else {
+            cellHeight = activeIndices.map { children[$0].intrinsicSize.height }.max() ?? 1
+        }
         for (placementIndex, childIndex) in activeIndices.enumerated() {
             let column = placementIndex % columns
             let row = placementIndex / columns
+            if let rows, row >= rows { return }
             let x = content.x + column * (cellWidth + gutter.main)
-            let y = content.y + row * (cellHeight + gutter.main)
+            let y = content.y + row * (cellHeight + rowGutter)
             guard y < content.y + content.height else { return }
             guard children[childIndex].shouldRender else { continue }
             var child = children[childIndex].renderable

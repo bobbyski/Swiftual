@@ -39,6 +39,18 @@ The pure Swift baseline demo lives in `Code/SwiftualDemo` and runs with `swift r
 - `05-small.tcss`: tiny sizing requests for clipping and minimum-size edge cases.
 - `06-that70sShow.tcss`: intentionally obnoxious bright-color flexibility demo. Never do this, but it is good to know you can.
 - `07-percent-flow.tcss`: percentage and fill-based outer demo layout rules for testing flexible flow containers.
+- `08-scalar-constraints.tcss`: Textual-style scalar units and min/max constraints.
+- `09-combined-cascade.tcss`: active source composition with baseline + theme + target override behavior.
+- `10-edge-to-edge-flow.tcss`: percentage-driven acceptance sheet for resize behavior across visible control groups.
+- `11-text-style-flags.tcss`: expanded ANSI text-style flags, including bold, dim, italic, underline, strikethrough, inverse, and blink.
+- `12-display-visibility.tcss`: display and visibility semantics in flow layout.
+- `13-variables.tcss`: top-level `$name: value;` variables resolving inside declaration values before typed parsing.
+- `14-important.tcss`: declaration-level `!important` cascade behavior.
+- `15-source-variables.tcss`: active source stacks sharing variables across enabled files; it includes `13-variables.tcss` and reuses those names from a later source.
+- `16-color-formats.tcss`: extra color parser coverage, currently HSL values that resolve to terminal RGB colors.
+- `17-border-aliases.tcss`: Textual-style border aliases, including native `heavy`/`blank` plus safe fallbacks for unsupported terminal-specific variants.
+- `18-alpha-colors.tcss`: RGB/HSL alpha syntax coverage. ANSI output renders opaque colors while preserving validation of the alpha syntax.
+- `19-text-align-values.tcss`: `text-align` aliases for `start`, `end`, British `centre`, and accepted `justify` fallback behavior.
 
 ## Keyboard Behavior
 

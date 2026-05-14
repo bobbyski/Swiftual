@@ -21,6 +21,7 @@ let style = cascade.style(
 `TCSSStyleContext` describes the control being styled:
 
 - `typeName`: control type such as `Screen`, `MenuBar`, or `Button`.
+- `typeNames`: optional additional type aliases for Textual-style base-type matching. `typeName` is always included automatically.
 - `id`: optional `#id` selector value.
 - `classNames`: class names available to `.class` selectors.
 - `pseudoStates`: active pseudo-states such as `focus`, `checked`, or `open`.
@@ -39,11 +40,45 @@ Or use `child(...)` when walking a hierarchy:
 let menu = TCSSStyleContext(typeName: "MenuBar").child(typeName: "Menu")
 ```
 
+Type aliases let custom or future subclass-like controls match shared selectors without losing their primary Swiftual type:
+
+```swift
+let customButton = TCSSStyleContext(typeName: "ToolbarButton", typeNames: ["Button"])
+```
+
+## Variables
+
+Top-level variables may be declared as `$name: value;` before or between rules, then used in declaration values:
+
+```css
+$accent: bright-cyan;
+
+Button.primary {
+    background: $accent;
+}
+```
+
+Variables resolve before declarations are converted into typed Swiftual style values. They do not participate in selector matching.
+
+## Important Declarations
+
+Declaration values may end with `!important`:
+
+```css
+Button {
+    background: green !important;
+}
+```
+
+Importance is tracked per property. An important `background` declaration does not make the same rule's `color` declaration important unless `color` also has its own marker. Important declarations beat normal declarations before specificity and source order are considered.
+
 ## Current Scope
 
 The cascade currently supports:
 
 - Type selectors: `MenuBar`
+- Type aliases: `ToolbarButton` may also advertise `Button`.
+- Universal selectors: `*`
 - Class selectors: `Label.centered`
 - ID selectors: `Button#primary`
 - Pseudo-state selectors: `Button:focus`
@@ -51,7 +86,7 @@ The cascade currently supports:
 - Direct child selectors: `MenuBar > Menu`
 - Descendant selectors: `ScrollView ScrollBarThumb`
 
-It resolves conflicts by specificity first, then source order.
+It resolves conflicts by declaration importance first, then specificity, then source order. Specificity is compared as a tuple in the CSS/Textual order: IDs, then classes and pseudo-states, then type names. That means `#primary` still beats `.a.b.c.d`, regardless of how many classes are chained together.
 
 ## Current Demo Application
 
@@ -82,9 +117,12 @@ This means selecting `06-that70sShow.tcss` should visibly change the live demo b
 ## Test Checklist
 
 - Type, class, ID, and pseudo-state selectors match contexts.
+- Type selectors may match the context's primary type name or any advertised type alias.
+- Universal selectors match any context with zero specificity.
 - Child selectors require a direct parent in `TCSSStyleContext.ancestors`.
 - Descendant selectors match any later ancestor in `TCSSStyleContext.ancestors`.
-- Higher specificity beats lower specificity.
+- Important declarations beat normal declarations per property.
+- Higher specificity beats lower specificity using ID/class/type tuple ordering.
 - Later source order wins when specificity ties.
 - Switching TCSS files in the demo applies live styles across all current demo controls.
 - Switching back to baseline resets demo styles through `TCSSStyleLayer` instead of retaining values from the previous stylesheet.
